@@ -49,6 +49,7 @@
   let settings = { currency: "USD", numCharts: 14 };
   let tick = 0;
   let sweepPos = 0;
+  let artificialLag = false;
   function init() {
     for (let s = 0; s < MAX_STOCKS; s++) {
       currentMid[s] = INITIAL_PRICES[s];
@@ -105,6 +106,11 @@
       stockHead[s] = (head + 1) % HISTORY_LEN;
     }
     self.postMessage(buildMessage(n, timestamp));
+    if (artificialLag) {
+      let sum = 0;
+      for (let i = 0; i < 1e9; i++) sum += Math.sqrt(i);
+      self._______sim = sum;
+    }
   }
   self.onmessage = (e) => {
     const msg = e.data;
@@ -136,9 +142,12 @@
       case "REQUEST_SNAPSHOT":
         self.postMessage(buildSnapshot());
         break;
+      case "TOGGLE_LAG":
+        artificialLag = !artificialLag;
+        break;
     }
   };
   init();
   setInterval(tick_, REFRESH_RATE);
 })();
-//# sourceMappingURL=worker-BJBEFqmw.js.map
+//# sourceMappingURL=worker-V6zqFr8j.js.map

@@ -125,7 +125,7 @@ function tick_() {
   if (artificialLag) {
     let sum = 0;
     for (let i = 0; i < 10_000_000_00; i++) sum += Math.sqrt(i);
-    void sum;
+    self._______sim = sum;
   }
 }
 
