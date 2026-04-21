@@ -1,4 +1,5 @@
 import type { WorkerToMainMessage, MainToWorkerMessage, IframeToMainMessage } from './types/messages';
+const buildPrefix = import.meta.env.BASE_URL;
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 let iframe: HTMLIFrameElement | null = null;
@@ -10,7 +11,7 @@ function createIframe(src = '/iframe.html') {
   }
   const el = document.createElement('iframe');
   el.id = 'frame';
-  el.src = src;
+  el.src = buildPrefix + src;
   document.body.appendChild(el);
   iframe = el;
   el.addEventListener('load', () => {
