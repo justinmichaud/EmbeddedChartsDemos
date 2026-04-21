@@ -1,0 +1,14 @@
+{
+  "name": "js-charts-simple",
+  "version": "1.0.0",
+  "description": "Simple TypeScript canvas app",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "esbuild src/index.ts --bundle --outdir=dist --define:DEVELOPMENT=true --serve=3000 --servedir=.",
+    "build": "esbuild src/index.ts --bundle --outdir=dist --minify --define:DEVELOPMENT=false"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "typescript": "^5.0.0"
+  }
+}
