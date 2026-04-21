@@ -141,3 +141,4 @@
   init();
   setInterval(tick_, REFRESH_RATE);
 })();
+//# sourceMappingURL=worker-BJBEFqmw.js.map
