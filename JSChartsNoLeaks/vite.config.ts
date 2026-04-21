@@ -42,6 +42,6 @@ export default defineConfig({
         iframe: resolve(__dirname, 'iframe.html'),
       },
     },
+    minify: false,
   },
-  base: ""
 })
