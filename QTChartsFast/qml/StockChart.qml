@@ -50,6 +50,10 @@ Rectangle {
         }
 
         // BID / MID / ASK / HIGH / LOW
+        // Use static delegates with reactive text bindings rather than a
+        // Repeater whose model literal references stock.* — that pattern
+        // re-evaluates the array on every pricesChanged and destroys/recreates
+        // every delegate at 5 Hz × 14 charts.
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 32
@@ -59,31 +63,53 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: 6
                 spacing: 4
-                Repeater {
-                    model: [
-                        { label: "BID", value: stock ? stock.currentBid.toFixed(3) : "", color: "#ef4444" },
-                        { label: "MID", value: stock ? stock.currentMid.toFixed(3) : "", color: "#e6e8eb" },
-                        { label: "ASK", value: stock ? stock.currentAsk.toFixed(3) : "", color: "#10b981" },
-                        { label: "HIGH", value: stock ? stock.high.toFixed(3) : "", color: "#9ca3af" },
-                        { label: "LOW", value: stock ? stock.low.toFixed(3) : "", color: "#9ca3af" },
-                    ]
-                    delegate: ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Text {
-                            text: modelData.label
-                            color: "#6b7280"
-                            font.family: "monospace"
-                            font.pixelSize: 9
-                        }
-                        Text {
-                            text: modelData.value
-                            color: modelData.color
-                            font.family: "monospace"
-                            font.pixelSize: 9
-                            font.bold: true
-                        }
+
+                component PriceCell: ColumnLayout {
+                    id: cell
+                    property string label
+                    property string value
+                    property color valueColor
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                        text: cell.label
+                        color: "#6b7280"
+                        font.family: "monospace"
+                        font.pixelSize: 9
                     }
+                    Text {
+                        text: cell.value
+                        color: cell.valueColor
+                        font.family: "monospace"
+                        font.pixelSize: 9
+                        font.bold: true
+                    }
+                }
+
+                PriceCell {
+                    label: "BID"
+                    value: stock ? stock.currentBid.toFixed(3) : ""
+                    valueColor: "#ef4444"
+                }
+                PriceCell {
+                    label: "MID"
+                    value: stock ? stock.currentMid.toFixed(3) : ""
+                    valueColor: "#e6e8eb"
+                }
+                PriceCell {
+                    label: "ASK"
+                    value: stock ? stock.currentAsk.toFixed(3) : ""
+                    valueColor: "#10b981"
+                }
+                PriceCell {
+                    label: "HIGH"
+                    value: stock ? stock.high.toFixed(3) : ""
+                    valueColor: "#9ca3af"
+                }
+                PriceCell {
+                    label: "LOW"
+                    value: stock ? stock.low.toFixed(3) : ""
+                    valueColor: "#9ca3af"
                 }
             }
         }
@@ -95,7 +121,10 @@ Rectangle {
             Layout.fillHeight: true
             backgroundColor: "#0f1419"
             plotAreaColor: "#0f1419"
-            antialiasing: true
+            // antialiasing: false — Qt Charts draws via QPainter into an FBO
+            // per ChartView; MSAA on 14 of those at 5 Hz is the dominant CPU
+            // cost. Lines look slightly harder but the framerate jump is large.
+            antialiasing: false
             legend.visible: false
             margins.top: 4
             margins.bottom: 4
@@ -126,30 +155,39 @@ Rectangle {
                 labelsFont.pixelSize: 8
                 tickCount: 4
                 labelFormat: "%.2f"
+                // Tick label re-layout on every range change is expensive in
+                // QGraphicsScene; only show labels on the enlarged view.
+                labelsVisible: root.enlarged
             }
 
-            // Bid/ask drawn as a single shaded band (matches the JS demo's
-            // two-Area look). The upper/lower LineSeries supply the curve
-            // envelopes; AreaSeries fills between them.
-            AreaSeries {
+            // Bid and ask drawn as two thin lines instead of an AreaSeries.
+            // AreaSeries is a CPU polygon fill (no useOpenGL support) and is
+            // by far the most expensive primitive on this chart; LineSeries
+            // with useOpenGL renders via the dedicated GL line path and skips
+            // the QGraphicsScene rasterizer entirely.
+            LineSeries {
+                id: askSeries
                 axisX: axisX
                 axisY: axisY
                 color: "#10b981"
-                borderColor: "#10b981"
-                borderWidth: 0
-                opacity: 0.22
-                upperSeries: LineSeries { id: askSeries }
-                lowerSeries: LineSeries { id: bidSeries }
+                width: 1
+                useOpenGL: true
             }
-
-            // Mid line, drawn on top of the band.
+            LineSeries {
+                id: bidSeries
+                axisX: axisX
+                axisY: axisY
+                color: "#ef4444"
+                width: 1
+                useOpenGL: true
+            }
             LineSeries {
                 id: midSeries
                 axisX: axisX
                 axisY: axisY
                 color: "#3b82f6"
-                width: root.enlarged ? 2 : 1.5
-                useOpenGL: false
+                width: root.enlarged ? 2 : 1
+                useOpenGL: true
             }
 
             Connections {
