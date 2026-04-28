@@ -2,7 +2,7 @@ import "./modulepreload-polyfill-DaKOjhqt.js";
 const buildPrefix = "/EmbeddedChartsDemos/";
 const worker = new Worker(new URL(
   /* @vite-ignore */
-  "/EmbeddedChartsDemos/assets/worker-V6zqFr8j.js",
+  "/EmbeddedChartsDemos/assets/worker-By_z-107.js",
   import.meta.url
 ), { type: "module" });
 let iframe = null;
@@ -60,4 +60,4 @@ window.addEventListener("message", (e) => {
   }
 });
 createIframe();
-//# sourceMappingURL=main-P83ghfmA.js.map
+//# sourceMappingURL=main-agsHwuch.js.map

@@ -9,12 +9,22 @@ namespace {
 
 const QStringList kStockSymbols = {
     "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
-    "BRK.B", "JPM", "V", "JNJ", "WMT", "PG", "XOM"
+    "BRK.B", "JPM", "V", "JNJ", "WMT", "PG", "XOM",
+    "UNH", "MA", "HD", "BAC", "KO", "PEP", "ABBV", "MRK",
+    "ORCL", "COST", "NFLX", "ADBE", "CSCO", "TMO", "ACN", "AVGO",
+    "CRM", "MCD", "PFE", "LLY", "INTC", "AMD", "T", "WFC",
+    "DIS", "NKE", "IBM", "BA", "GM", "F", "VZ", "QCOM",
+    "TXN", "AMGN", "GS", "CAT"
 };
 
-const std::array<double, 14> kInitialPrices = {
+const std::array<double, 50> kInitialPrices = {
     178.42, 412.88, 142.65, 186.33, 878.54, 248.91, 492.28,
-    445.67, 198.72, 287.45, 156.23, 167.88, 162.45, 112.34
+    445.67, 198.72, 287.45, 156.23, 167.88, 162.45, 112.34,
+    524.10,  482.55, 388.40,  39.85,  62.71, 173.92, 162.40, 128.55,
+    142.30, 832.15, 632.80, 552.40,  49.32, 587.95, 367.20, 1745.10,
+    298.40, 287.65,  28.12, 758.30,  35.45, 168.20,  19.85,  56.40,
+    111.30,  82.55, 175.20, 213.40,  52.30,  12.85,  41.20, 174.60,
+    198.40, 312.55, 478.20, 358.40
 };
 
 const QStringList kHeadlines = {

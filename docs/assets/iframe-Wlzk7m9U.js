@@ -31012,7 +31012,7 @@ function ChartDetail({ symbol }) {
   ] });
 }
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CNY", "CHF", "AUD", "CAD"];
-const CHART_COUNTS = [2, 4, 6, 8, 10, 12, 14];
+const CHART_COUNTS = [2, 4, 8, 14, 20, 30, 40, 50];
 function send(msg) {
   window.parent.postMessage(msg, "*");
 }
@@ -31067,7 +31067,7 @@ function SettingsModal({ onClose }) {
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-[#6b7280] mb-1", style: { fontSize: 9 }, children: "CHARTS DISPLAYED" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-7 gap-1", children: CHART_COUNTS.map((n) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-8 gap-1", children: CHART_COUNTS.map((n) => /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
                     onClick: () => setNumCharts(n),
@@ -31126,4 +31126,4 @@ function App() {
   ] }) });
 }
 clientExports.createRoot(document.getElementById("root")).render(/* @__PURE__ */ jsxRuntimeExports.jsx(App, {}));
-//# sourceMappingURL=iframe-q3KRld9j.js.map
+//# sourceMappingURL=iframe-Wlzk7m9U.js.map

@@ -2,7 +2,7 @@ import type { IframeToMainMessage } from '../../types/messages';
 import { useData } from '../context/DataContext';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'CHF', 'AUD', 'CAD'];
-const CHART_COUNTS = [2, 4, 6, 8, 10, 12, 14];
+const CHART_COUNTS = [2, 4, 8, 14, 20, 30, 40, 50];
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -73,7 +73,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           {/* Num charts */}
           <div>
             <div className="text-[#6b7280] mb-1" style={{ fontSize: 9 }}>CHARTS DISPLAYED</div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-8 gap-1">
               {CHART_COUNTS.map(n => (
                 <button
                   key={n}

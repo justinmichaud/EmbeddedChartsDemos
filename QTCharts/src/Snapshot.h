@@ -5,7 +5,7 @@
 #include <array>
 
 constexpr int HISTORY_LEN = 60;
-constexpr int MAX_STOCKS = 20;
+constexpr int MAX_STOCKS = 50;
 constexpr int REFRESH_RATE_MS = 200;
 constexpr int NEWS_RATE_MS = 10000;
 constexpr int SWEEP_PERIOD_MS = 10000;

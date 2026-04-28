@@ -17,7 +17,7 @@ Popup {
     }
 
     readonly property var currencies: ["USD", "EUR", "GBP", "JPY", "CNY", "CHF", "AUD", "CAD"]
-    readonly property var chartCounts: [2, 4, 6, 8, 10, 12, 14]
+    readonly property var chartCounts: [2, 4, 8, 14, 20, 30, 40, 50]
 
     ColumnLayout {
         anchors.fill: parent
@@ -86,7 +86,7 @@ Popup {
                 Text { text: "CHARTS DISPLAYED"; color: "#6b7280"; font.family: "monospace"; font.pixelSize: 9 }
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: 7
+                    columns: 8
                     columnSpacing: 4
                     rowSpacing: 4
                     Repeater {

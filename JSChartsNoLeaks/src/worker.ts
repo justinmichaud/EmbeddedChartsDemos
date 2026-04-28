@@ -5,7 +5,7 @@ const NEWS_RATE = 10000; // ms between news index advances
 const SWEEP_PERIOD_MS = 10_000;
 const SWEEP_STEP = REFRESH_RATE / SWEEP_PERIOD_MS; // fraction of cycle per tick
 const HISTORY_LEN = 60;
-const MAX_STOCKS = 20;
+const MAX_STOCKS = 50;
 
 // Xorshift128 — zero allocation, deterministic
 let _x = 0xDEADBEEF, _y = 362436069, _z = 521288629, _w = 88675123;
@@ -16,9 +16,27 @@ function rand(): number {
   return (_w >>> 0) / 0x100000000;
 }
 
-const STOCK_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'BRK.B', 'JPM', 'V', 'JNJ', 'WMT', 'PG', 'XOM'];
-const STOCK_NAMES   = ['Apple', 'Microsoft', 'Alphabet', 'Amazon', 'NVIDIA', 'Tesla', 'Meta', 'Berkshire', 'JPMorgan', 'Visa', 'J&J', 'Walmart', 'P&G', 'Exxon'];
-const INITIAL_PRICES = [178.42, 412.88, 142.65, 186.33, 878.54, 248.91, 492.28, 445.67, 198.72, 287.45, 156.23, 167.88, 162.45, 112.34];
+const STOCK_SYMBOLS = [
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'BRK.B', 'JPM', 'V',
+  'JNJ', 'WMT', 'PG', 'XOM', 'UNH', 'MA', 'HD', 'BAC', 'KO', 'PEP',
+  'ABBV', 'MRK', 'ORCL', 'COST', 'NFLX', 'ADBE', 'CSCO', 'TMO', 'ACN', 'AVGO',
+  'CRM', 'MCD', 'PFE', 'LLY', 'INTC', 'AMD', 'T', 'WFC', 'DIS', 'NKE',
+  'IBM', 'BA', 'GM', 'F', 'VZ', 'QCOM', 'TXN', 'AMGN', 'GS', 'CAT',
+];
+const STOCK_NAMES = [
+  'Apple', 'Microsoft', 'Alphabet', 'Amazon', 'NVIDIA', 'Tesla', 'Meta', 'Berkshire', 'JPMorgan', 'Visa',
+  'J&J', 'Walmart', 'P&G', 'Exxon', 'UnitedHealth', 'Mastercard', 'Home Depot', 'BofA', 'Coca-Cola', 'PepsiCo',
+  'AbbVie', 'Merck', 'Oracle', 'Costco', 'Netflix', 'Adobe', 'Cisco', 'Thermo Fisher', 'Accenture', 'Broadcom',
+  'Salesforce', 'McDonalds', 'Pfizer', 'Eli Lilly', 'Intel', 'AMD', 'AT&T', 'Wells Fargo', 'Disney', 'Nike',
+  'IBM', 'Boeing', 'GM', 'Ford', 'Verizon', 'Qualcomm', 'TI', 'Amgen', 'Goldman', 'Caterpillar',
+];
+const INITIAL_PRICES = [
+  178.42, 412.88, 142.65, 186.33, 878.54, 248.91, 492.28, 445.67, 198.72, 287.45,
+  156.23, 167.88, 162.45, 112.34, 524.10, 482.55, 388.40,  39.85,  62.71, 173.92,
+  162.40, 128.55, 142.30, 832.15, 632.80, 552.40,  49.32, 587.95, 367.20, 1745.10,
+  298.40, 287.65,  28.12, 758.30,  35.45, 168.20,  19.85,  56.40, 111.30,  82.55,
+  175.20, 213.40,  52.30,  12.85,  41.20, 174.60, 198.40, 312.55, 478.20, 358.40,
+];
 
 const NEWS_HEADLINES = [
   'Fed signals rate pause as inflation data cools',

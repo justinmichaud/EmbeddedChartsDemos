@@ -5,7 +5,7 @@
   const SWEEP_PERIOD_MS = 1e4;
   const SWEEP_STEP = REFRESH_RATE / SWEEP_PERIOD_MS;
   const HISTORY_LEN = 60;
-  const MAX_STOCKS = 20;
+  const MAX_STOCKS = 50;
   let _x = 3735928559, _y = 362436069, _z = 521288629, _w = 88675123;
   function rand() {
     const t = _x ^ _x << 11;
@@ -15,8 +15,110 @@
     _w = _w ^ _w >>> 19 ^ (t ^ t >>> 8);
     return (_w >>> 0) / 4294967296;
   }
-  const STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK.B", "JPM", "V", "JNJ", "WMT", "PG", "XOM"];
-  const INITIAL_PRICES = [178.42, 412.88, 142.65, 186.33, 878.54, 248.91, 492.28, 445.67, 198.72, 287.45, 156.23, 167.88, 162.45, 112.34];
+  const STOCK_SYMBOLS = [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA",
+    "TSLA",
+    "META",
+    "BRK.B",
+    "JPM",
+    "V",
+    "JNJ",
+    "WMT",
+    "PG",
+    "XOM",
+    "UNH",
+    "MA",
+    "HD",
+    "BAC",
+    "KO",
+    "PEP",
+    "ABBV",
+    "MRK",
+    "ORCL",
+    "COST",
+    "NFLX",
+    "ADBE",
+    "CSCO",
+    "TMO",
+    "ACN",
+    "AVGO",
+    "CRM",
+    "MCD",
+    "PFE",
+    "LLY",
+    "INTC",
+    "AMD",
+    "T",
+    "WFC",
+    "DIS",
+    "NKE",
+    "IBM",
+    "BA",
+    "GM",
+    "F",
+    "VZ",
+    "QCOM",
+    "TXN",
+    "AMGN",
+    "GS",
+    "CAT"
+  ];
+  const INITIAL_PRICES = [
+    178.42,
+    412.88,
+    142.65,
+    186.33,
+    878.54,
+    248.91,
+    492.28,
+    445.67,
+    198.72,
+    287.45,
+    156.23,
+    167.88,
+    162.45,
+    112.34,
+    524.1,
+    482.55,
+    388.4,
+    39.85,
+    62.71,
+    173.92,
+    162.4,
+    128.55,
+    142.3,
+    832.15,
+    632.8,
+    552.4,
+    49.32,
+    587.95,
+    367.2,
+    1745.1,
+    298.4,
+    287.65,
+    28.12,
+    758.3,
+    35.45,
+    168.2,
+    19.85,
+    56.4,
+    111.3,
+    82.55,
+    175.2,
+    213.4,
+    52.3,
+    12.85,
+    41.2,
+    174.6,
+    198.4,
+    312.55,
+    478.2,
+    358.4
+  ];
   const NEWS_HEADLINES = [
     "Fed signals rate pause as inflation data cools",
     "Tech rally continues on strong earnings beat",
@@ -150,4 +252,4 @@
   init();
   setInterval(tick_, REFRESH_RATE);
 })();
-//# sourceMappingURL=worker-V6zqFr8j.js.map
+//# sourceMappingURL=worker-By_z-107.js.map
