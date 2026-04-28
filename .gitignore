@@ -1,2 +1,5 @@
 node_modules
 QTCharts/build
+QTCharts/build-release
+QTChartsFast/build-release
+QTChartsFast/build
