@@ -1,5 +1,5 @@
 import type { WorkerToMainMessage, MainToWorkerMessage, IframeToMainMessage } from './types/messages';
-const buildPrefix = "";//import.meta.env.BASE_URL;
+const buildPrefix = import.meta.env.BASE_URL; // comment out for dev builds.
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 let iframe: HTMLIFrameElement | null = null;

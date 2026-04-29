@@ -1,8 +1,8 @@
 import "./modulepreload-polyfill-DaKOjhqt.js";
-const buildPrefix = "/";
+const buildPrefix = "/EmbeddedChartsDemos/";
 const worker = new Worker(new URL(
   /* @vite-ignore */
-  "/assets/worker-By_z-107.js",
+  "/EmbeddedChartsDemos/assets/worker-By_z-107.js",
   import.meta.url
 ), { type: "module" });
 let iframe = null;
@@ -60,4 +60,4 @@ window.addEventListener("message", (e) => {
   }
 });
 createIframe();
-//# sourceMappingURL=main-Ce19H_Fk.js.map
+//# sourceMappingURL=main-agsHwuch.js.map

@@ -61,10 +61,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const base = s * HISTORY_LEN;
         stocks[s] = {
           symbol: msg.stockSymbols[s],
-          mid:  Array.from(msg.stockMid.slice(base, base + HISTORY_LEN)),
-          bid:  Array.from(msg.stockBid.slice(base, base + HISTORY_LEN)),
-          ask:  Array.from(msg.stockAsk.slice(base, base + HISTORY_LEN)),
-          time: Array.from(msg.stockTime.slice(base, base + HISTORY_LEN)),
+          mid:  msg.stockMid.slice(base, base + HISTORY_LEN),
+          bid:  msg.stockBid.slice(base, base + HISTORY_LEN),
+          ask:  msg.stockAsk.slice(base, base + HISTORY_LEN),
+          time: msg.stockTime.slice(base, base + HISTORY_LEN),
           head: msg.stockHead[s],
         };
       }
