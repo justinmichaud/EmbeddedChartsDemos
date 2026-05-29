@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "RNCharts",
+    "slug": "rncharts",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f1419",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "backgroundColor": "#0f1419",
+      "bundleIdentifier": "com.anonymous.rncharts"
+    },
+    "android": {
+      "backgroundColor": "#0f1419",
+      "package": "com.anonymous.rncharts"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-asset"
+    ]
+  }
+}
