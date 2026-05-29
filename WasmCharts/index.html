@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WasmCharts — Stock Chart Viewer</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="menubar">
+        <div class="left">
+          <span class="title">WASMCHARTS</span>
+          <button id="back" class="hidden" type="button">← Back</button>
+        </div>
+        <div class="right">
+          <span class="stat">FPS <b id="fps">–</b></span>
+          <span id="clock" class="stat"></span>
+          <button id="lag" type="button" title="Toggle artificial main-thread lag">Lag</button>
+          <button id="open-settings" type="button">⚙</button>
+        </div>
+      </header>
+
+      <div id="stage">
+        <div id="sweep"></div>
+        <div id="newsfeed">
+          <div class="news-head">
+            <span class="news-title">NEWSFEED</span>
+            <span class="news-live">LIVE</span>
+          </div>
+          <div class="news-rows">
+            <div class="news-row" data-age="0"><span class="news-marker">▶</span><span class="news-text"></span></div>
+            <div class="news-row" data-age="1"><span class="news-marker"> </span><span class="news-text"></span></div>
+            <div class="news-row" data-age="2"><span class="news-marker"> </span><span class="news-text"></span></div>
+          </div>
+        </div>
+        <canvas id="charts"></canvas>
+      </div>
+    </div>
+
+    <dialog id="settings">
+      <form method="dialog" class="settings-form">
+        <h2>Settings</h2>
+        <label>
+          Currency
+          <select id="currency">
+            <option>USD</option><option>EUR</option><option>GBP</option>
+            <option>JPY</option><option>CNY</option><option>CHF</option>
+            <option>AUD</option><option>CAD</option>
+          </select>
+        </label>
+        <label>
+          Charts
+          <input id="num-charts" type="number" min="2" max="50" step="1" />
+        </label>
+        <menu>
+          <button id="reset" value="reset" type="submit">Reset</button>
+          <button value="close" type="submit">Close</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/host.ts"></script>
+  </body>
+</html>

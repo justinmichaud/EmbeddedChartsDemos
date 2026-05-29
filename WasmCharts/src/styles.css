@@ -1,0 +1,88 @@
+:root {
+  --bg: #0f1419;
+  --panel: #1a1f29;
+  --border: #2d3748;
+  --text: #e6e8eb;
+  --muted: #6b7280;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+#app { display: flex; flex-direction: column; height: 100%; }
+
+#menubar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+  background: var(--panel); font-size: 12px; gap: 12px;
+}
+#menubar .left, #menubar .right { display: flex; align-items: center; gap: 10px; }
+#menubar .title { font-weight: 700; letter-spacing: 0.08em; }
+#menubar .stat { color: var(--muted); }
+#menubar .stat b { color: var(--text); font-weight: 600; }
+/* NEWSFEED panel — mirrors NewsView.tsx (card above the chart grid) */
+#newsfeed {
+  position: relative; z-index: 2;
+  margin: 8px 8px 0; border: 1px solid var(--border); background: var(--panel);
+}
+.news-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 1px 8px; border-bottom: 1px solid var(--border);
+}
+.news-title { color: #3b82f6; font-weight: 700; font-size: 9px; }
+.news-live { color: var(--muted); font-size: 8px; }
+.news-row {
+  display: flex; align-items: center; gap: 8px; padding: 3px 8px;
+  white-space: nowrap; overflow: hidden;
+}
+.news-row + .news-row { border-top: 1px solid var(--border); }
+.news-marker { flex: none; font-size: 8px; }
+.news-text { font-size: 9px; overflow: hidden; text-overflow: ellipsis; }
+.news-row[data-age="0"] .news-marker { color: var(--text); }
+.news-row[data-age="0"] .news-text { color: #d1d5db; }
+.news-row[data-age="1"] .news-marker, .news-row[data-age="2"] .news-marker,
+.news-row[data-age="1"] .news-text, .news-row[data-age="2"] .news-text { color: var(--muted); }
+#menubar button {
+  background: #0f1419; color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 8px; font: inherit; cursor: pointer;
+}
+#menubar button:hover { border-color: #4b5563; }
+.hidden { display: none !important; }
+
+#stage { position: relative; flex: 1; min-height: 0; overflow: auto; }
+#charts { display: block; width: 100%; }
+
+/* CSS sweep overlay driven by --sweep (a percentage) from host.ts */
+#sweep {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1;
+  background: linear-gradient(
+    to right,
+    rgba(59,130,246,0.07) 0%,
+    rgba(59,130,246,0.07) calc(var(--sweep, 0%) - 1px),
+    rgba(99,179,237,0.55) calc(var(--sweep, 0%) - 1px),
+    rgba(99,179,237,0.55) var(--sweep, 0%),
+    transparent var(--sweep, 0%)
+  );
+}
+
+dialog {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px;
+}
+dialog::backdrop { background: rgba(0,0,0,0.5); }
+.settings-form { display: flex; flex-direction: column; gap: 12px; min-width: 220px; }
+.settings-form h2 { margin: 0 0 4px; font-size: 14px; }
+.settings-form label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
+.settings-form select, .settings-form input {
+  background: #0f1419; color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 6px; font: inherit;
+}
+.settings-form menu { display: flex; justify-content: flex-end; gap: 8px; margin: 8px 0 0; padding: 0; }
+.settings-form button {
+  background: #0f1419; color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 12px; font: inherit; cursor: pointer;
+}
