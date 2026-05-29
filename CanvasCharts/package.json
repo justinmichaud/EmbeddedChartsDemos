@@ -1,0 +1,15 @@
+{
+  "name": "canvas-charts",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --base=\"/EmbeddedChartsDemos/\"",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "vite": "6.3.5"
+  }
+}

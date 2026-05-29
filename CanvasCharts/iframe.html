@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stock Chart Viewer</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Menubar -->
+      <header id="menubar">
+        <div class="mb-left">
+          <button id="back" class="btn hidden" type="button">← BACK</button>
+          <span class="brand">MKTTERM</span>
+          <span id="clock" class="stat"></span>
+          <span class="stat"><b id="fps" class="fps">0</b> fps</span>
+          <span class="stat">lag <b id="lag-ms" class="lag-ms">0.0</b> ms</span>
+        </div>
+        <div class="mb-right">
+          <span id="ccy" class="stat-ccy">USD</span>
+          <button id="open-settings" class="btn" type="button">SETTINGS</button>
+          <button id="lag" class="btn" type="button">LAG</button>
+          <button id="recover" class="btn btn-danger" type="button">RECOVER</button>
+        </div>
+      </header>
+
+      <!-- Scrollable content -->
+      <main id="content">
+        <div id="sweep"></div>
+
+        <!-- Newsfeed (hidden in detail view) -->
+        <section id="newsfeed">
+          <div class="news-head">
+            <span class="news-title">NEWSFEED</span>
+            <span class="news-live">LIVE</span>
+          </div>
+          <div class="news-rows">
+            <div class="news-row"><span class="news-marker">▶</span><span class="news-text"></span></div>
+            <div class="news-row"><span class="news-marker"> </span><span class="news-text"></span></div>
+            <div class="news-row"><span class="news-marker"> </span><span class="news-text"></span></div>
+          </div>
+        </section>
+
+        <!-- Detail view banner (hidden in grid view) -->
+        <div id="detail-banner" class="hidden">
+          <span id="detail-label" class="detail-label"></span>
+        </div>
+
+        <!-- Chart cards mount here -->
+        <div id="grid"></div>
+      </main>
+    </div>
+
+    <!-- Settings -->
+    <dialog id="settings">
+      <form method="dialog" id="settings-form">
+        <div class="dlg-head">
+          <span>SETTINGS</span>
+          <button id="settings-close" class="dlg-x" value="close" type="submit">✕</button>
+        </div>
+        <div class="dlg-body">
+          <div class="field-label">CURRENCY</div>
+          <div id="currency-grid" class="opt-grid opt-grid-4"></div>
+          <div class="field-label">CHARTS DISPLAYED</div>
+          <div id="charts-grid" class="opt-grid opt-grid-8"></div>
+          <div class="dlg-reset">
+            <button id="clear-storage" class="btn-reset" value="close" type="submit">
+              CLEAR LOCAL STORAGE &amp; RESET
+            </button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/iframe-main.ts"></script>
+  </body>
+</html>
