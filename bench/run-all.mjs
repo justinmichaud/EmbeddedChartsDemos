@@ -18,7 +18,9 @@ import { writeCombined } from './lib/combined.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
 
-const WEB = ['CanvasCharts', 'JSChartsFast', 'JSChartsFastServo', 'JSChartsNoLeaks', 'WasmCharts', 'JSChartsSimple'];
+// JSChartsFastServo runs the Servo-targeted build in a real Servo browser;
+// JSChartsFastServoChromium runs the same build in Chromium for comparison.
+const WEB = ['CanvasCharts', 'JSChartsFast', 'JSChartsFastServo', 'JSChartsFastServoChromium', 'JSChartsNoLeaks', 'WasmCharts', 'JSChartsSimple'];
 const NATIVE = ['FlutterCharts', 'QTCharts', 'QTChartsFast', 'RNCharts'];
 
 let apps = args.webOnly || args['web-only'] ? WEB : [...WEB, ...NATIVE];

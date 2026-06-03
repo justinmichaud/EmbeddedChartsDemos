@@ -48,13 +48,25 @@ Common flags (all have defaults): `--duration <sec>` (run window, default 30),
 ### Web apps — ready to run (served from each app's `dist/`)
 
 ```bash
-node bench-JSChartsFast.mjs      --duration 30 --recover 15
-node bench-CanvasCharts.mjs      --duration 30 --recover 15
-node bench-JSChartsFastServo.mjs --duration 30 --recover 15
-node bench-JSChartsNoLeaks.mjs   --duration 30 --recover 15
-node bench-WasmCharts.mjs        --duration 30 --recover 15   # no RECOVER: extra window still sampled
-node bench-JSChartsSimple.mjs    --duration 30                # no RECOVER
+node bench-JSChartsFast.mjs               --duration 30 --recover 15
+node bench-CanvasCharts.mjs               --duration 30 --recover 15
+node bench-JSChartsFastServo.mjs          --duration 30                # real Servo (WebDriver); no RECOVER
+node bench-JSChartsFastServoChromium.mjs  --duration 30 --recover 15   # same build, in Chromium
+node bench-JSChartsNoLeaks.mjs            --duration 30 --recover 15
+node bench-WasmCharts.mjs                 --duration 30 --recover 15   # no RECOVER: extra window still sampled
+node bench-JSChartsSimple.mjs             --duration 30                # no RECOVER
 ```
+
+> **`JSChartsFastServo` runs in a real Servo browser**, driven over Servo's
+> WebDriver server (`servo-bench.mjs`) — every other web app is driven in
+> Chromium via Playwright. Servo has no CDP, so this run reports **no JS heap**
+> and has **no RECOVER phase** (the engine can't force GC); it samples FPS and
+> whole-process RSS only. The same build run in Chromium (with JS heap + RECOVER)
+> is `JSChartsFastServoChromium`, for cross-engine comparison.
+>
+> Servo is expected at `/Applications/Servo.app/Contents/MacOS/servo`; override
+> with `SERVO_BIN`. Other env knobs: `SERVO_WEBDRIVER_PORT` (default 7055),
+> `SERVO_WINDOW_SIZE` (default `1920x1080`).
 
 > Uses the prebuilt `dist/`. To benchmark fresh code, rebuild the app first
 > (`pnpm build` / `pnpm wasm:build` etc.).
