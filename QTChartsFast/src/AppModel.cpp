@@ -3,7 +3,13 @@
 
 #include <QDateTime>
 #include <QMetaObject>
+#include <QtGlobal>
 #include <algorithm>
+#include <cstdio>
+
+// When BENCH_FPS=1 is set, print one "BENCHFPS <n>" line per second to stdout
+// for the benchmark harness (bench/bench-QTChartsFast.mjs). No effect otherwise.
+static const bool kBenchEmitFps = qEnvironmentVariableIntValue("BENCH_FPS") == 1;
 
 AppModel::AppModel(QObject *parent)
     : QObject(parent)
@@ -11,7 +17,7 @@ AppModel::AppModel(QObject *parent)
     qRegisterMetaType<Snapshot>("Snapshot");
 
     m_currency = m_settings.value("currency", "USD").toString();
-    m_numCharts = std::min(m_settings.value("numCharts", 14).toInt(), MAX_STOCKS);
+    m_numCharts = std::min(m_settings.value("numCharts", 50).toInt(), MAX_STOCKS);
 }
 
 AppModel::~AppModel()
@@ -146,6 +152,7 @@ void AppModel::toggleLag()
 
 void AppModel::reportFps(int fps)
 {
+    if (kBenchEmitFps) { std::fprintf(stdout, "BENCHFPS %d\n", fps); std::fflush(stdout); }
     if (fps == m_fps) return;
     m_fps = fps;
     emit fpsChanged();

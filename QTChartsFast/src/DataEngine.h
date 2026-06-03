@@ -52,7 +52,7 @@ private:
     std::array<double, MAX_STOCKS> m_spreadBps{};
 
     QString m_currency = "USD";
-    int m_numCharts = 14;
+    int m_numCharts = 50;
 
     int m_tick = 0;
     double m_sweepPos = 0.0;

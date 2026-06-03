@@ -198,7 +198,7 @@ void DataEngine::updateSettings(const QString &currency, int numCharts)
 void DataEngine::resetSettings()
 {
     m_currency = "USD";
-    m_numCharts = 14;
+    m_numCharts = 50;
     emit settingsChanged(m_currency, m_numCharts);
 }
 

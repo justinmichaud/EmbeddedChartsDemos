@@ -1,8 +1,16 @@
+import 'dart:io' show Platform, stdout;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../sim/simulation.dart';
 import '../theme.dart';
+
+/// When the BENCH_FPS=1 environment variable is set, the menu bar prints one
+/// `BENCHFPS <n>` line per second to stdout so the benchmark harness
+/// (bench/bench-FlutterCharts.mjs) can read the live framerate. No effect on
+/// normal runs.
+final bool _benchEmitFps = Platform.environment['BENCH_FPS'] == '1';
 
 /// Top bar: MKTTERM logo, wall clock, live FPS, lag-ms readout, currency, and
 /// the SETTINGS / LAG / RECOVER buttons.
@@ -51,6 +59,7 @@ class _TerminalMenuBarState extends State<TerminalMenuBar>
     _frames++;
     if (elapsed - _lastSecond >= const Duration(seconds: 1)) {
       _lastSecond = elapsed;
+      if (_benchEmitFps) stdout.writeln('BENCHFPS $_frames');
       setState(() => _fps = _frames);
       _frames = 0;
     }

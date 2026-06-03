@@ -2,6 +2,8 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QSettings>
+#include <QtGlobal>
 #include <QUrl>
 
 #include "AppModel.h"
@@ -13,6 +15,11 @@ int main(int argc, char *argv[])
 
     QApplication::setOrganizationName("EmbeddedDemos");
     QApplication::setApplicationName("QtChartsDemo");
+
+    // When BENCH_RESET=1 (set by bench/bench-QTCharts.mjs), wipe persisted
+    // QSettings before anything reads them, so the run uses the app defaults.
+    if (qEnvironmentVariableIntValue("BENCH_RESET") == 1)
+        QSettings().clear();
 
     QQuickStyle::setStyle("Basic");
 

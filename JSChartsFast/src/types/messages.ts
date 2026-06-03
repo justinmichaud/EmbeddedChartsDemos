@@ -5,7 +5,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   currency: 'USD',
-  numCharts: 14,
+  numCharts: 50,
 };
 
 // Worker → Main → Iframe

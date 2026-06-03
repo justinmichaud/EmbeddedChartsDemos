@@ -6,6 +6,11 @@ import QtQuick.Window
 ApplicationWindow {
     id: window
     visible: true
+    // Start maximized so the chart render area fills the screen, matching the
+    // other demos — otherwise the fixed 1280x800 window renders far fewer chart
+    // pixels and the FPS/memory numbers aren't comparable. width/height remain
+    // the restored (un-maximize) size.
+    visibility: Window.Maximized
     width: 1280
     height: 800
     title: "MKTTERM — Qt Charts Demo"

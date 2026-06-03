@@ -19,6 +19,9 @@ let booted = false;
 export async function boot() {
   if (booted) return;
   booted = true;
+  // When EXPO_PUBLIC_BENCH_RESET=1 (set by bench/bench-RNCharts.mjs), wipe
+  // persisted settings before loading so the run uses the app defaults.
+  if (process.env.EXPO_PUBLIC_BENCH_RESET === '1') await clearStorage();
   const saved = await loadSettings();
   sim.setSettings(saved);
   sim.start(emit);

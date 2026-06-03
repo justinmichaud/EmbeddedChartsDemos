@@ -1,10 +1,10 @@
 import "./modulepreload-polyfill-DaKOjhqt.js";
-const buildPrefix = "/EmbeddedChartsDemos/";
+const buildPrefix = "";
 const worker = new Worker(new URL(
   /* @vite-ignore */
-  "/EmbeddedChartsDemos/assets/worker-By_z-107.js",
+  "/EmbeddedChartsDemos/assets/worker-Cd-Un4-D.js",
   import.meta.url
-), { type: "module" });
+));
 let iframe = null;
 function createIframe(src = "/iframe.html") {
   if (iframe) {
@@ -60,4 +60,4 @@ window.addEventListener("message", (e) => {
   }
 });
 createIframe();
-//# sourceMappingURL=main-agsHwuch.js.map
+//# sourceMappingURL=main-X-sYdjhF.js.map

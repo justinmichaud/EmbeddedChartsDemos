@@ -70,7 +70,7 @@ const stockHead = new Array<number>(MAX_STOCKS).fill(0);
 const currentMid = new Array<number>(MAX_STOCKS).fill(0);
 const spreadBps  = new Array<number>(MAX_STOCKS).fill(0);
 
-let settings: Settings = { currency: 'USD', numCharts: 14 };
+let settings: Settings = { currency: 'USD', numCharts: 50 };
 let tick = 0;
 let sweepPos = 0; // [0, 1) advances by SWEEP_STEP each tick
 let artificialLag = false;
@@ -171,7 +171,7 @@ self.onmessage = (e: MessageEvent<MainToWorkerMessage>) => {
       break;
     }
     case 'RESET_SETTINGS':
-      settings = { currency: 'USD', numCharts: 14 };
+      settings = { currency: 'USD', numCharts: 50 };
       self.postMessage({ type: 'SAVE_SETTINGS', settings } as WorkerToMainMessage);
       break;
     case 'REQUEST_SNAPSHOT':

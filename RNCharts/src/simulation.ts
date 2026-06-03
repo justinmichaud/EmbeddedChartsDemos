@@ -73,7 +73,7 @@ export interface Settings {
   currency: string;
   numCharts: number;
 }
-export const DEFAULT_SETTINGS: Settings = { currency: 'USD', numCharts: 14 };
+export const DEFAULT_SETTINGS: Settings = { currency: 'USD', numCharts: 50 };
 
 // Live state read by the React tree each tick.
 export const state = {

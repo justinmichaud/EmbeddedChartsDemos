@@ -24,7 +24,7 @@ struct Snapshot {
     int tick = 0;
     double sweepPos = 0.0;
     QString currency = "USD";
-    int numCharts = 14;
+    int numCharts = 50;
     QVector<StockTrace> stocks;
     QStringList headlines;
     int newsIndex = 0;

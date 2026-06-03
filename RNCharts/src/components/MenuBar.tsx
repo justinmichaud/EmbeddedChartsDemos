@@ -29,6 +29,10 @@ export function MenuBar({ onSettings, onRecover }: Props) {
       frames.current++;
       if (!last.current) last.current = t;
       if (t - last.current >= 1000) {
+        // When EXPO_PUBLIC_BENCH_FPS=1, log one BENCHFPS line/sec to the Metro
+        // console so the benchmark harness (bench/bench-RNCharts.mjs) can read
+        // the live framerate. Inlined at bundle time; no effect on normal runs.
+        if (process.env.EXPO_PUBLIC_BENCH_FPS === '1') console.log('BENCHFPS ' + frames.current);
         setFps(frames.current);
         frames.current = 0;
         last.current = t;

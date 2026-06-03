@@ -3,7 +3,7 @@
 import init, { Engine } from './wasm/charts.js';
 
 interface Settings { currency: string; numCharts: number }
-const DEFAULT_SETTINGS: Settings = { currency: 'USD', numCharts: 14 };
+const DEFAULT_SETTINGS: Settings = { currency: 'USD', numCharts: 50 };
 
 function loadSettings(): Settings {
   try {

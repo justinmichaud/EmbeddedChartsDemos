@@ -69,7 +69,7 @@ class Settings {
   Map<String, dynamic> toJson() => {'currency': currency, 'numCharts': numCharts};
 }
 
-Settings defaultSettings() => Settings(currency: 'USD', numCharts: 14);
+Settings defaultSettings() => Settings(currency: 'USD', numCharts: 50);
 
 /// The market simulation. Mutates pre-allocated ring buffers in place and
 /// notifies listeners once per 5 Hz tick. Widgets read the buffers directly

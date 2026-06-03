@@ -85,7 +85,7 @@ private:
     int m_tick = 0;
     double m_sweepPos = 0.0;
     QString m_currency = "USD";
-    int m_numCharts = 14;
+    int m_numCharts = 50;
     QStringList m_headlines;
     int m_newsIndex = 0;
     double m_lastMessageAge = 0.0;

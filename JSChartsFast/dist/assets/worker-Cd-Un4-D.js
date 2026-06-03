@@ -148,7 +148,7 @@
   const stockHead = new Array(MAX_STOCKS).fill(0);
   const currentMid = new Array(MAX_STOCKS).fill(0);
   const spreadBps = new Array(MAX_STOCKS).fill(0);
-  let settings = { currency: "USD", numCharts: 14 };
+  let settings = { currency: "USD", numCharts: 50 };
   let tick = 0;
   let sweepPos = 0;
   let artificialLag = false;
@@ -238,7 +238,7 @@
         break;
       }
       case "RESET_SETTINGS":
-        settings = { currency: "USD", numCharts: 14 };
+        settings = { currency: "USD", numCharts: 50 };
         self.postMessage({ type: "SAVE_SETTINGS", settings });
         break;
       case "REQUEST_SNAPSHOT":
@@ -252,4 +252,4 @@
   init();
   setInterval(tick_, REFRESH_RATE);
 })();
-//# sourceMappingURL=worker-By_z-107.js.map
+//# sourceMappingURL=worker-Cd-Un4-D.js.map
