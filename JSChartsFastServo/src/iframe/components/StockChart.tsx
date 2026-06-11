@@ -1,5 +1,4 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { LineChart, Line, Area, YAxis, XAxis } from 'recharts';
 import type { StockSnapshot } from '../context/DataContext';
 
 const HISTORY_LEN = 60;
@@ -11,25 +10,73 @@ interface StockChartProps {
   enlarged?: boolean;
 }
 
-interface ChartPoint { t: number; mid: number; bid: number; ask: number }
-
-function makeBuffer(): ChartPoint[] {
-  const buf = new Array<ChartPoint>(HISTORY_LEN);
-  for (let i = 0; i < HISTORY_LEN; i++) buf[i] = { t: 0, mid: 0, bid: 0, ask: 0 };
-  return buf;
-}
-
-// Match LineChart margin so plot area aligns with the data line/area paths.
+// Match the old recharts LineChart margin so the data paths line up with the
+// memoized <ChartOverlay/> grid + axis labels.
 const PAD_TOP = 4, PAD_RIGHT = 32, PAD_BOTTOM = 4, PAD_LEFT = 4;
 const X_TICK_IDX = [0, 15, 30, 45];
+
+// ---------------------------------------------------------------------------
+// Monotone-cubic path builder — SVG, no recharts.
+//
+// In Servo, SVG out-performs Canvas2D for these live charts (Servo's canvas is
+// software-rendered and pays a HiDPI backing-store penalty; measured ~3-8 fps
+// vs ~23 fps for SVG with 50 charts). We draw the 3 series as raw <path>s whose
+// "d" we compute directly. The curve is a faithful port of recharts'
+// `type="monotone"` (d3-shape curveMonotoneX, Fritsch–Carlson tangents).
+// ---------------------------------------------------------------------------
+
+// Scratch buffers reused across every series of every chart. React renders are
+// synchronous and single-threaded, and each buildPaths call consumes these
+// before returning a string, so one shared set is safe and keeps the hot path
+// allocation-free.
+const PX = new Float64Array(HISTORY_LEN);
+const PY = new Float64Array(HISTORY_LEN);
+const M  = new Float64Array(HISTORY_LEN);
+const S  = new Float64Array(HISTORY_LEN);
+
+function sign(x: number): number { return x > 0 ? 1 : x < 0 ? -1 : 0; }
+function r2(x: number): number { return Math.round(x * 100) / 100; }
+
+// Project `arr` (a 60-entry ring buffer with `head`) into screen space and emit
+// [lineD, areaD]: the monotone line, and the same curve closed down to the
+// plot baseline for the translucent fill.
+function buildPaths(
+  arr: number[], head: number,
+  plotL: number, plotT: number, plotW: number, plotH: number,
+  yLo: number, yRange: number, baseline: number,
+): [string, string] {
+  const n = HISTORY_LEN;
+  for (let i = 0; i < n; i++) {
+    PX[i] = plotL + (plotW * i) / (n - 1);
+    PY[i] = plotT + plotH * (1 - (arr[(head + i) % n] - yLo) / yRange);
+  }
+  for (let i = 0; i < n - 1; i++) S[i] = (PY[i + 1] - PY[i]) / (PX[i + 1] - PX[i]);
+  for (let i = 1; i < n - 1; i++) {
+    const s0 = S[i - 1], s1 = S[i];
+    const h0 = PX[i] - PX[i - 1], h1 = PX[i + 1] - PX[i];
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1);
+    M[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0;
+  }
+  M[0]     = (3 * S[0] - M[1]) / 2;
+  M[n - 1] = (3 * S[n - 2] - M[n - 2]) / 2;
+
+  let seg = '';
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (PX[i + 1] - PX[i]) / 3;
+    seg += `C${r2(PX[i] + dx)} ${r2(PY[i] + dx * M[i])} ${r2(PX[i + 1] - dx)} ${r2(PY[i + 1] - dx * M[i + 1])} ${r2(PX[i + 1])} ${r2(PY[i + 1])}`;
+  }
+  const start = `M${r2(PX[0])} ${r2(PY[0])}`;
+  const line = start + seg;
+  const area = `M${r2(PX[0])} ${r2(baseline)}L${r2(PX[0])} ${r2(PY[0])}${seg}L${r2(PX[n - 1])} ${r2(baseline)}Z`;
+  return [line, area];
+}
 
 interface ChartOverlayProps { w: number; h: number; yLo: number; yHi: number }
 
 // Memoized SVG overlay: grid lines + axis labels. Re-renders only when its
 // props change. With Y-snap hysteresis, yLo/yHi are stable across most ticks
 // and chart dimensions are stable after first paint, so React.memo bails out
-// on ~all renders — recharts' renderTicks / renderLineItem / Text2 work is
-// fully bypassed.
+// on ~all renders.
 const ChartOverlay = memo(function ChartOverlay({ w, h, yLo, yHi }: ChartOverlayProps) {
   const plotW = w - PAD_LEFT - PAD_RIGHT;
   const plotH = h - PAD_TOP - PAD_BOTTOM;
@@ -76,15 +123,7 @@ const ChartOverlay = memo(function ChartOverlay({ w, h, yLo, yHi }: ChartOverlay
 });
 
 export function StockChart({ stock, currency, onClick, enlarged }: StockChartProps) {
-  // Stable per-chart buffer of 60 point objects — mutated in place each render
-  // to avoid allocating 60 fresh objects every tick.
-  const bufRef = useRef<ChartPoint[]>();
-  if (!bufRef.current) bufRef.current = makeBuffer();
-  const buf = bufRef.current;
-
-  // Replace ResponsiveContainer with a single ResizeObserver pass. Avoids
-  // the per-render cloneElement + useMemo + wrapper div that ResponsiveContainer
-  // performs for every LineChart render.
+  // Single ResizeObserver pass to track the plot box.
   const wrapRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   useEffect(() => {
@@ -102,54 +141,38 @@ export function StockChart({ stock, currency, onClick, enlarged }: StockChartPro
     return () => ro.disconnect();
   }, []);
 
-  // Servo repaint workaround: Servo does not repaint an SVG subtree when its
-  // <path d> is mutated in place, which is exactly how recharts updates the line
-  // each tick — so the chart freezes after first paint while the numbers update.
-  // Nudging the transform on recharts' <svg> after every render forces a
+  // Servo repaint workaround: Servo does not repaint an SVG subtree when a
+  // <path d> is mutated in place — which is what React does to our path nodes
+  // each tick, so the chart would freeze after first paint while the numbers
+  // update. Nudging the transform on our <svg> after every render forces a
   // re-raster. We alternate between two *equivalent, always-composited*
   // transforms (rather than toggling transform on/off) so the compositor layer
-  // persists — toggling to `none` destroys the layer and blanks the chart for a
-  // frame. This keeps the line live without unmounting (which would flicker).
+  // persists.
+  const dataSvgRef = useRef<SVGSVGElement>(null);
   const flipRef = useRef(0);
   useEffect(() => {
-    const svg = wrapRef.current?.querySelector<SVGElement>('svg.recharts-surface');
+    const svg = dataSvgRef.current;
     if (!svg) return;
     flipRef.current ^= 1;
     svg.style.transform = flipRef.current ? 'translateZ(0px)' : 'translate3d(0px,0px,0px)';
   });
 
-  // Recharts keys each axis tick <g> by `${value}-${coordinate}-${tickCoord}`
-  // (CartesianAxis.js:270). If those numbers drift each render, every tick
-  // unmounts and remounts → Node.removeChild storm in the commit phase. We
-  // keep the displayed Y domain (and therefore tick values + coordinates)
-  // stable across renders, only re-snapping when data drifts outside.
-  const yDomainRef = useRef<[number, number]>([0, 0]);
-  const yTicksRef  = useRef<number[]>([0, 0, 0, 0, 0]);
-  const yRangeRef  = useRef<{ lo: number; hi: number }>({ lo: 0, hi: 0 });
+  // Keep the displayed Y domain stable across renders, only re-snapping when
+  // data drifts outside — keeps the memoized ChartOverlay from re-rendering.
+  const yRangeRef = useRef<{ lo: number; hi: number }>({ lo: 0, hi: 0 });
 
-  // Single pass: copy ring buffer to chronological order, compute high/low/yMin/yMax.
   let high = -Infinity, low = Infinity;
   let yMin = Infinity, yMax = -Infinity;
   const head = stock.head;
   for (let i = 0; i < HISTORY_LEN; i++) {
-    const idx = (head + i) % HISTORY_LEN;
-    const a = stock.ask[idx];
-    const b = stock.bid[idx];
-    const m = stock.mid[idx];
-    const t = stock.time[idx];
+    const a = stock.ask[i];
+    const b = stock.bid[i];
     if (a > high) high = a;
     if (b < low)  low  = b;
     if (a > yMax) yMax = a;
     if (b < yMin) yMin = b;
-    const p = buf[i];
-    p.t = t; p.mid = m; p.bid = b; p.ask = a;
   }
 
-  // Y range with lazy re-snap: only update yLo/yHi when the data actually
-  // leaves the current range, then pad generously so the next re-snap is
-  // far away. This keeps tick values + coordinates byte-identical across
-  // most renders, so recharts' "tick-${value}-${coord}-${tickCoord}" keys
-  // (CartesianAxis.js:270) stay stable and the tick <g>s don't unmount.
   const yr = yRangeRef.current;
   if (yr.hi <= yr.lo || yMin < yr.lo || yMax > yr.hi) {
     const dataRange = (yMax - yMin) || Math.max(yMax * 0.001, 1e-6);
@@ -158,22 +181,6 @@ export function StockChart({ stock, currency, onClick, enlarged }: StockChartPro
   }
   const yLo = yr.lo;
   const yHi = yr.hi;
-  yDomainRef.current[0] = yLo;
-  yDomainRef.current[1] = yHi;
-  const yDomain = yDomainRef.current;
-
-  const yTicks = yTicksRef.current;
-  const yStep  = (yHi - yLo) / 4;
-  yTicks[0] = yLo;
-  yTicks[1] = yLo + yStep;
-  yTicks[2] = yLo + yStep * 2;
-  yTicks[3] = yLo + yStep * 3;
-  yTicks[4] = yHi;
-
-  // recharts memoizes by data reference, so wrap the stable buffer in a fresh
-  // array each render to force re-derivation. One slice (60 ref copies) replaces
-  // 60 fresh ChartPoint allocations.
-  const data = buf.slice();
 
   const lastIdx   = (head + HISTORY_LEN - 1) % HISTORY_LEN;
   const firstIdx  = head % HISTORY_LEN;
@@ -185,6 +192,21 @@ export function StockChart({ stock, currency, onClick, enlarged }: StockChartPro
   const changeColor = change >= 0 ? '#10b981' : '#ef4444';
 
   const chartHeight = enlarged ? 320 : 96;
+
+  let askLine = '', askArea = '', bidLine = '', bidArea = '', midLine = '';
+  let drawable = false;
+  if (dims && dims.w > 0 && dims.h > 0) {
+    const plotW = dims.w - PAD_LEFT - PAD_RIGHT;
+    const plotH = dims.h - PAD_TOP - PAD_BOTTOM;
+    if (plotW > 0 && plotH > 0) {
+      const yRange = yHi - yLo || 1;
+      const baseline = PAD_TOP + plotH;
+      [askLine, askArea] = buildPaths(stock.ask, head, PAD_LEFT, PAD_TOP, plotW, plotH, yLo, yRange, baseline);
+      [bidLine, bidArea] = buildPaths(stock.bid, head, PAD_LEFT, PAD_TOP, plotW, plotH, yLo, yRange, baseline);
+      [midLine]          = buildPaths(stock.mid, head, PAD_LEFT, PAD_TOP, plotW, plotH, yLo, yRange, baseline);
+      drawable = true;
+    }
+  }
 
   return (
     <div
@@ -233,48 +255,23 @@ export function StockChart({ stock, currency, onClick, enlarged }: StockChartPro
 
       {/* Chart */}
       <div className="bg-[#0f1419] relative" style={{ height: chartHeight }} ref={wrapRef}>
-        {dims && dims.w > 0 && dims.h > 0 && (
-          <LineChart width={dims.w} height={dims.h} data={data} margin={{ top: PAD_TOP, right: PAD_RIGHT, left: PAD_LEFT, bottom: PAD_BOTTOM }}>
-            {/* Axes hidden — they only contribute scale info to recharts.
-                Visual ticks/grid are drawn by the memoized <ChartOverlay/>. */}
-            <XAxis hide />
-            <YAxis
-              hide
-              domain={yDomain}
-              ticks={yTicks}
-              interval={0}
-              tickCount={0}
-            />
-            <Area
-              type="monotone"
-              dataKey="ask"
-              stroke="#10b981"
-              strokeWidth={1}
-              fill="#10b981"
-              fillOpacity={0.12}
-              isAnimationActive={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="bid"
-              stroke="#ef4444"
-              strokeWidth={1}
-              fill="#ef4444"
-              fillOpacity={0.12}
-              isAnimationActive={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="mid"
-              stroke="#3b82f6"
-              strokeWidth={enlarged ? 2 : 1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          </LineChart>
+        {drawable && (
+          <svg
+            ref={dataSvgRef}
+            width={dims!.w}
+            height={dims!.h}
+            style={{ position: 'absolute', top: 0, left: 0 }}
+          >
+            {/* recharts JSX order: ask area+line, bid area+line, mid line on top. */}
+            <path d={askArea} fill="#10b981" fillOpacity={0.12} stroke="none" />
+            <path d={askLine} fill="none" stroke="#10b981" strokeWidth={1} />
+            <path d={bidArea} fill="#ef4444" fillOpacity={0.12} stroke="none" />
+            <path d={bidLine} fill="none" stroke="#ef4444" strokeWidth={1} />
+            <path d={midLine} fill="none" stroke="#3b82f6" strokeWidth={enlarged ? 2 : 1.5} strokeLinejoin="round" />
+          </svg>
         )}
-        {dims && dims.w > 0 && dims.h > 0 && (
-          <ChartOverlay w={dims.w} h={dims.h} yLo={yLo} yHi={yHi} />
+        {drawable && (
+          <ChartOverlay w={dims!.w} h={dims!.h} yLo={yLo} yHi={yHi} />
         )}
       </div>
 
