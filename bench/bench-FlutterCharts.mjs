@@ -36,11 +36,12 @@ if (process.platform === 'darwin') {
     }
   }
 } else {
-  // Linux: try profile, then release, across whatever arch dir exists.
+  // Linux: prefer the release bundle (the real shipping build, for a fair
+  // device comparison), then profile, then debug, across whatever arch dir exists.
   const linuxRoot = path.join(repo, 'FlutterCharts/build/linux');
   outer:
   for (const arch of fs.existsSync(linuxRoot) ? fs.readdirSync(linuxRoot) : []) {
-    for (const flavor of ['profile', 'release', 'debug']) {
+    for (const flavor of ['release', 'profile', 'debug']) {
       const cand = path.join(linuxRoot, arch, flavor, 'bundle', 'fluttercharts');
       if (fs.existsSync(cand)) { bin = cand; break outer; }
     }
@@ -48,8 +49,8 @@ if (process.platform === 'darwin') {
 }
 if (!bin) {
   const cmd = process.platform === 'darwin'
-    ? 'cd FlutterCharts && flutter build macos --profile'
-    : 'cd FlutterCharts && flutter build linux --profile';
+    ? 'cd FlutterCharts && flutter build macos --release'
+    : 'cd FlutterCharts && flutter build linux --release';
   console.error(`FlutterCharts profile build not found. Build it first:\n  ${cmd}`);
   process.exit(1);
 }

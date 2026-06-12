@@ -27,11 +27,18 @@ export function printSummary(app, summary, recoverAtSec) {
   console.log(`\n${'='.repeat(64)}`);
   console.log(`  ${app} — benchmark summary`);
   console.log('='.repeat(64));
+  const memLine = (label, st) => {
+    if (!st || st.n === 0) return;
+    console.log(`    ${label.padEnd(3)}  (MB)  avg ${fmt(st.avg)}  min ${fmt(st.min)}  max ${fmt(st.max)}`);
+  };
   for (const [phase, s] of Object.entries(summary)) {
     console.log(`\n  [${phase}]  ${s.durationSec.toFixed(1)}s, ${s.samples} samples`);
     console.log(`    FPS        avg ${fmt(s.fps.avg)}  min ${fmt(s.fps.min)}  p5 ${fmt(s.fps.p5)}  max ${fmt(s.fps.max)}`);
-    console.log(`    RSS  (MB)  avg ${fmt(s.rssMB.avg)}  min ${fmt(s.rssMB.min)}  max ${fmt(s.rssMB.max)}`);
-    console.log(`    JSheap(MB) avg ${fmt(s.jsHeapMB.avg)}  min ${fmt(s.jsHeapMB.min)}  max ${fmt(s.jsHeapMB.max)}`);
+    memLine('RSS', s.rssMB);
+    memLine('PSS', s.pssMB);
+    memLine('USS', s.ussMB);
+    if (s.jsHeapMB && s.jsHeapMB.n > 0)
+      console.log(`    JSheap(MB) avg ${fmt(s.jsHeapMB.avg)}  min ${fmt(s.jsHeapMB.min)}  max ${fmt(s.jsHeapMB.max)}`);
   }
   if (recoverAtSec != null) console.log(`\n  recover triggered at ${recoverAtSec.toFixed(1)}s`);
 }

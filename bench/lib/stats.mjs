@@ -31,6 +31,8 @@ export function summarizePhases(samples) {
       fps: summarize(rows, 'fps'),
       jsHeapMB: summarize(rows.map((r) => ({ v: r.jsHeapBytes == null ? null : r.jsHeapBytes / 1048576 })), 'v'),
       rssMB: summarize(rows.map((r) => ({ v: r.rssKb == null ? null : r.rssKb / 1024 })), 'v'),
+      pssMB: summarize(rows.map((r) => ({ v: r.pssKb == null ? null : r.pssKb / 1024 })), 'v'),
+      ussMB: summarize(rows.map((r) => ({ v: r.ussKb == null ? null : r.ussKb / 1024 })), 'v'),
     };
   }
   return out;

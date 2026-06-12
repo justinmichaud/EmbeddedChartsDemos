@@ -14,7 +14,7 @@
 
 import { spawn } from 'node:child_process';
 import { startServer } from './lib/static-server.mjs';
-import { treeRssKb } from './lib/proc.mjs';
+import { treeMemAll } from './lib/proc.mjs';
 import { writeReport } from './lib/report.mjs';
 import { printSummary } from './lib/cli.mjs';
 import { WebDriver, waitForWebDriver } from './lib/webdriver.mjs';
@@ -92,6 +92,8 @@ export async function servoBench(cfg) {
     await wd.execute('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} return null;').catch(() => {});
     await wd.navigate(url);
 
+    const va = await wd.execute('return JSON.stringify({ w: innerWidth, h: innerHeight, dpr: window.devicePixelRatio });').catch(() => null);
+    if (va) { try { const o = JSON.parse(va); console.log(`[${app}] render area: ${o.w}x${o.h} @ DPR ${o.dpr}`); } catch {} }
     console.log(`[${app}] reset settings to defaults; warming up ${warmupSec}s...`);
     await sleep(warmupSec * 1000);
 
@@ -110,9 +112,9 @@ export async function servoBench(cfg) {
         fps = (c.frames - lastByFrame.frames) * 1000 / (c.now - lastByFrame.now);
       }
       if (c) lastByFrame = c;
-      const rss = await treeRssKb(servoPid);
+      const mem = await treeMemAll(servoPid);
       // jsHeapBytes is unavailable on Servo (no CDP) — always null.
-      samples.push({ t: Date.now(), phase, fps: fps == null ? null : +fps.toFixed(1), jsHeapBytes: null, rssKb: rss });
+      samples.push({ t: Date.now(), phase, fps: fps == null ? null : +fps.toFixed(1), jsHeapBytes: null, rssKb: mem.rssKb, pssKb: mem.pssKb, ussKb: mem.ussKb });
     }
 
     console.log(`[${app}] sampling run phase for ${durationSec}s...`);

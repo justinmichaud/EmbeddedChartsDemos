@@ -1,8 +1,8 @@
 // Grouped comparison charts. Given this session's per-app JSON reports and a
-// set of group definitions, render — for each group — TWO standalone SVGs:
-// one for framerate (FPS) and one for memory (RSS, MB), each a single panel
-// with one colored line per group member (using the member's display label,
-// not its internal app name). One file per metric per group, as requested.
+// set of group definitions, render — for each group — one standalone SVG for
+// framerate plus a SEPARATE SVG for each memory metric (RSS, PSS, USS) that has
+// data. Each panel has one colored line per group member, using the member's
+// display label (not its internal app name). One file per metric per group.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -10,6 +10,13 @@ import * as path from 'node:path';
 const PALETTE = [
   '#4ade80', '#3b82f6', '#f97316', '#e879f9', '#facc15',
   '#22d3ee', '#ef4444', '#a3e635', '#fb7185', '#818cf8',
+];
+
+// Memory metrics, each rendered as its own chart per group when data exists.
+const MEM_METRICS = [
+  { key: 'rssMB', label: 'RSS' },
+  { key: 'pssMB', label: 'PSS' },
+  { key: 'ussMB', label: 'USS' },
 ];
 
 // reportsByApp: Map<appName, parsedReport>. groups: see groups.mjs.
@@ -20,16 +27,14 @@ export function writeGroupCharts({ reportsByApp, groups, outDir, stamp }) {
 
   for (const group of groups) {
     const entries = group.members
-      .map((mem, i) => {
-        const r = reportsByApp.get(mem.app);
+      .map((member, i) => {
+        const r = reportsByApp.get(member.app);
         if (!r || !Array.isArray(r.samples) || !r.samples.length) return null;
         return {
-          label: mem.label,
+          label: member.label,
           color: PALETTE[i % PALETTE.length],
           samples: r.samples,
           recoverAtSec: r.recoverAtSec,
-          avgFps: r.summary?.run?.fps?.avg ?? null,
-          peakRssMB: maxAcross(r, 'rssMB'),
         };
       })
       .filter(Boolean);
@@ -39,28 +44,39 @@ export function writeGroupCharts({ reportsByApp, groups, outDir, stamp }) {
       continue;
     }
 
+    // Framerate.
     const fpsFile = path.join(outDir, `${group.slug}-fps-${stamp}.svg`);
-    const memFile = path.join(outDir, `${group.slug}-memory-${stamp}.svg`);
     fs.writeFileSync(fpsFile, renderPanel(entries, {
-      metric: 'fps', title: `${group.title} — framerate`, axis: 'FPS', unit: 'fps', stamp,
+      metric: 'fps', title: `${group.title} — framerate`, axis: 'FPS', stamp,
     }));
-    fs.writeFileSync(memFile, renderPanel(entries, {
-      metric: 'rssMB', title: `${group.title} — memory (RSS)`, axis: 'RSS (MB)', unit: 'MB', stamp,
-    }));
-    written.push(fpsFile, memFile);
+    written.push(fpsFile);
+
+    // One memory chart per metric that has data in this group.
+    for (const mm of MEM_METRICS) {
+      const hasData = entries.some((e) => e.samples.some((s) => s[mm.key] != null));
+      if (!hasData) continue;
+      const file = path.join(outDir, `${group.slug}-${mm.label.toLowerCase()}-${stamp}.svg`);
+      fs.writeFileSync(file, renderPanel(entries, {
+        metric: mm.key, title: `${group.title} — memory (${mm.label})`, axis: `${mm.label} (MB)`, stamp,
+      }));
+      written.push(file);
+    }
   }
   return written;
 }
 
-function maxAcross(report, key) {
+function avgOf(samples, key) {
+  let sum = 0, n = 0;
+  for (const s of samples) if (s[key] != null) { sum += s[key]; n++; }
+  return n ? sum / n : null;
+}
+function peakOf(samples, key) {
   let m = null;
-  for (const s of report.samples) {
-    if (s[key] != null && (m == null || s[key] > m)) m = s[key];
-  }
+  for (const s of samples) if (s[key] != null && (m == null || s[key] > m)) m = s[key];
   return m;
 }
 
-function renderPanel(entries, { metric, title, axis, unit, stamp }) {
+function renderPanel(entries, { metric, title, axis, stamp }) {
   const W = 1100;
   const legendRows = entries.length;
   const headH = 44 + legendRows * 16 + 10;
@@ -75,7 +91,7 @@ function renderPanel(entries, { metric, title, axis, unit, stamp }) {
   if (metric === 'fps') {
     yMax = Math.max(60, Math.ceil((Math.max(0, ...entries.flatMap((e) => e.samples.map((s) => s.fps ?? 0))) + 5) / 10) * 10);
   } else {
-    const peak = Math.max(1, ...entries.flatMap((e) => e.samples.map((s) => s.rssMB ?? 0)));
+    const peak = Math.max(1, ...entries.flatMap((e) => e.samples.map((s) => s[metric] ?? 0)));
     yMax = Math.ceil((peak * 1.1) / 50) * 50 || 50;
   }
 
@@ -92,7 +108,9 @@ function renderPanel(entries, { metric, title, axis, unit, stamp }) {
   // Legend: one row per member with the headline stat for this metric.
   entries.forEach((e, i) => {
     const ly = 58 + i * 16;
-    const stat = metric === 'fps' ? `${fmt(e.avgFps, 0)} fps avg` : `${fmt(e.peakRssMB, 0)} MB peak`;
+    const stat = metric === 'fps'
+      ? `${fmt(avgOf(e.samples, 'fps'), 0)} fps avg`
+      : `${fmt(peakOf(e.samples, metric), 0)} MB peak`;
     svg += `<rect x="${m.left}" y="${ly - 8}" width="14" height="4" fill="${e.color}"/>`;
     svg += `<text x="${m.left + 20}" y="${ly - 3}" fill="${COL.text}" font-size="11">${esc(e.label)}  (${esc(stat)})</text>`;
   });

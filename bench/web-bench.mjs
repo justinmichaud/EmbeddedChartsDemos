@@ -20,7 +20,7 @@ import { chromium } from 'playwright';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { startServer } from './lib/static-server.mjs';
-import { treeRssKb } from './lib/proc.mjs';
+import { treeMemAll } from './lib/proc.mjs';
 import { writeReport } from './lib/report.mjs';
 import { parseArgs, num, printSummary } from './lib/cli.mjs';
 
@@ -97,7 +97,24 @@ export function configFromArgs(defaults = {}) {
   // does not use the GPU compositor, so its framerate is not representative).
   // Pass --headless to opt into an off-screen run for unattended/CI use.
   const headless = args.headless === true || args.headless === 'true';
+  // --low-memory: launch Chromium with site isolation disabled (+ related
+  // process-consolidation), so its process count and RSS are closer to WebKit's
+  // for a fairer memory comparison. Off by default (default = real-world Chrome).
+  const lowMemory = args['low-memory'] === true || args['low-memory'] === 'true';
+  // Embedded-representative defaults: ONE renderer process (matches how WPE /
+  // Chromium ship on devices) and RSS (the real resident-memory pressure on a
+  // constrained device). Opt out of the single renderer with --multi-renderer;
+  // switch to the proportional PSS metric with --pss.
+  const singleRenderer = !(args['multi-renderer'] === true || args['multi-renderer'] === 'true');
+  // --ram-budget <MB>: simulate a device with this much RAM by capping each
+  // engine's JS heap to the same budget (V8 --max-old-space-size; JSC
+  // forceRAMSize in webkit-bench). 0 = unset. Every run records RSS, PSS and USS
+  // (all three), so no metric-selection flag is needed.
+  const ramBudgetMB = num(args['ram-budget'], 0);
   return {
+    lowMemory,
+    singleRenderer,
+    ramBudgetMB,
     app: args.app || defaults.app || 'web-app',
     rootDir: args.root || defaults.rootDir,
     base: args.base || defaults.base || '/',
@@ -134,17 +151,35 @@ export async function webBench(cfg) {
   // area and the FPS/memory numbers are comparable. Headed uses --start-maximized
   // (the real OS maximize); headless has no window manager, so we pick an
   // explicit screen-sized window instead.
-  const server = await chromium.launchServer({
-    headless: cfg.headless,
-    args: cfg.headless ? ['--window-size=1920,1080'] : [
-      '--start-maximized',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-background-timer-throttling',
-      '--disable-features=CalculateNativeWinOcclusion',
-    ],
-  });
-  console.log(`[${app}] chromium: ${cfg.headless ? 'headless (off-screen)' : 'headed (on-screen, real compositor)'}`);
+  // Features passed to a SINGLE --disable-features flag (Chromium lets a later
+  // --disable-features override an earlier one, so they must be merged here).
+  const disabledFeatures = cfg.headless ? [] : ['CalculateNativeWinOcclusion'];
+  const launchArgs = cfg.headless ? ['--window-size=1920,1080'] : [
+    '--start-maximized',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-background-timer-throttling',
+  ];
+  // --low-memory: disable site isolation (no per-origin renderer processes) and
+  // consolidate same-site pages into one process. This is the big memory lever;
+  // it brings Chromium's process count/RSS closer to WebKit's. For a further,
+  // more aggressive cap, add '--renderer-process-limit=1'.
+  if (cfg.lowMemory) {
+    disabledFeatures.push('IsolateOrigins', 'site-per-process');
+    launchArgs.push('--disable-site-isolation-trials', '--process-per-site');
+  }
+  if (cfg.singleRenderer) launchArgs.push('--renderer-process-limit=1');
+  // Cap V8's old space to the RAM budget (the engine's main JS heap lever).
+  if (cfg.ramBudgetMB > 0) launchArgs.push(`--js-flags=--max-old-space-size=${cfg.ramBudgetMB}`);
+  if (disabledFeatures.length) launchArgs.push(`--disable-features=${disabledFeatures.join(',')}`);
+
+  const modeTags = [
+    cfg.lowMemory ? 'low-memory (site isolation off)' : null,
+    cfg.singleRenderer ? 'single-renderer' : null,
+    cfg.ramBudgetMB > 0 ? `ram-budget=${cfg.ramBudgetMB}MB` : null,
+  ].filter(Boolean).join(' · ') || 'default';
+  const server = await chromium.launchServer({ headless: cfg.headless, args: launchArgs });
+  console.log(`[${app}] chromium: ${cfg.headless ? 'headless (off-screen)' : 'headed (on-screen, real compositor)'} · ${modeTags}`);
   const browserPid = server.process()?.pid;
   const browser = await chromium.connect(server.wsEndpoint());
   // viewport: null lets the page fill the actual (maximized) window rather than
@@ -161,6 +196,11 @@ export async function webBench(cfg) {
   // is already ephemeral, but this also covers headed runs on a real profile.)
   await page.evaluate(() => { try { localStorage.clear(); sessionStorage.clear(); } catch {} }).catch(() => {});
   await page.goto(url, { waitUntil: 'load' });
+  // Render-area parity: log viewport + devicePixelRatio so we can confirm every
+  // engine renders the same pixel area (otherwise FPS/memory aren't comparable).
+  const va = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, dpr: window.devicePixelRatio }))
+    .catch(() => null);
+  if (va) console.log(`[${app}] render area: ${va.w}x${va.h} @ DPR ${va.dpr}`);
   console.log(`[${app}] reset settings to defaults; warming up ${warmupSec}s...`);
   await sleep(warmupSec * 1000);
 
@@ -182,8 +222,8 @@ export async function webBench(cfg) {
       }
     }
     lastByFrame = counters;
-    const [heap, rss] = await Promise.all([jsHeapBytes(cdp), treeRssKb(browserPid)]);
-    samples.push({ t: Date.now(), phase, fps: minFps == null ? null : +minFps.toFixed(1), jsHeapBytes: heap, rssKb: rss });
+    const [heap, mem] = await Promise.all([jsHeapBytes(cdp), treeMemAll(browserPid)]);
+    samples.push({ t: Date.now(), phase, fps: minFps == null ? null : +minFps.toFixed(1), jsHeapBytes: heap, rssKb: mem.rssKb, pssKb: mem.pssKb, ussKb: mem.ussKb });
   }
 
   // ---- run phase ----

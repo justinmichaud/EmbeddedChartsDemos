@@ -51,9 +51,27 @@ const BROWSER_NAME = IS_WPE ? 'webkitwpe' : 'webkitgtk';
 // one in this build so we benchmark the local WebKit, not an installed package.
 const MINIBROWSER = `${SOURCE_DIR}/WebKitBuild/${BUILD_PORT}/${BUILD_CONFIG}/bin/MiniBrowser`;
 
-// The WebKit processes whose RSS we sum (matched against `ps comm` in the
-// container). WebDriver's bundled browser is MiniBrowser plus its helper procs.
-const WEBKIT_PROC_RE = /WebKitWebDriver|MiniBrowser|WebKitWebProcess|WebKitNetworkProcess|WebKitGPUProcess|WPEWebProcess|WPENetworkProcess/;
+// Embedded-representative default: run JSC in "mini VM mode" (JSC_forceMiniVMMode=1).
+// This is the low-memory-device VM profile — non-generational GC, synchronous
+// sweep, smaller heaps — while keeping the JIT on (isInMiniMode() = !useJIT ||
+// forceMiniVMMode), so memory is constrained like a device without tanking FPS.
+// It matches running Chromium single-renderer. Disable with --no-mini-vm or
+// WEBKIT_MINI_VM=0. The env var is exported before run-webdriver so it is
+// inherited by the WebProcess (where JSC actually runs).
+const MINI_VM = process.env.WEBKIT_MINI_VM !== '0' && !process.argv.includes('--no-mini-vm');
+
+// The WebKit browser processes whose RSS we sum. Matched against the FULL
+// command line (`ps -eo args=`), NOT `comm`: Linux truncates comm to 15 chars,
+// so "WebKitWebProcess"/"WebKitNetworkProcess"/"WebKitGPUProcess" would silently
+// fail to match and the heaviest process (the WebProcess holding the page) would
+// be dropped — undercounting RSS by hundreds of MB.
+//
+// WebKitWebDriver is deliberately EXCLUDED: it is the automation server (the
+// analog of Playwright's driver, which the Chromium RSS path also doesn't
+// count), not part of the browser. We count MiniBrowser (UI) + the Web /
+// Network / GPU content processes (and the bwrap sandbox wrappers, matched via
+// the WebProcess path in their args).
+const WEBKIT_PROC_RE = /\b(MiniBrowser|WebKitWebProcess|WebKitNetworkProcess|WebKitGPUProcess|WPEWebProcess|WPENetworkProcess|WPEGPUProcess)\b/;
 
 // Same rAF FPS meter the Chromium/Servo engines inject (kept byte-for-byte
 // identical so all engines' FPS are measured the same way).
@@ -87,18 +105,33 @@ async function containerExec(shellCmd) {
   return stdout;
 }
 
-// Sum RSS (KB) of every WebKit process inside the container. `ps` runs in the
-// container's PID namespace (host `ps` cannot see these processes).
-async function containerWebkitRssKb() {
+// Sum RSS, PSS and USS (KB) of every WebKit process inside the container, in one
+// pass. `ps` runs in the container's PID namespace (host `ps` cannot see these
+// processes); PSS/USS are summed from each match's /proc/<pid>/smaps_rollup,
+// read inside the container with a single awk over all matched files.
+//   USS = Private_Clean + Private_Dirty. Returns {rssKb,pssKb,ussKb} (pss/uss
+//   null if smaps couldn't be read), or all-null if no WebKit processes found.
+async function containerWebkitMemAll() {
+  const none = { rssKb: null, pssKb: null, ussKb: null };
   try {
-    const out = await containerExec('ps -eo rss=,comm=');
-    let total = 0, matched = 0;
+    const out = await containerExec('ps -eo pid=,rss=,args=');
+    const pids = []; let rssTotal = 0;
     for (const line of out.split('\n')) {
-      const m = line.trim().match(/^(\d+)\s+(.*)$/);
-      if (m && WEBKIT_PROC_RE.test(m[2])) { total += Number(m[1]); matched++; }
+      const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (m && WEBKIT_PROC_RE.test(m[3])) { pids.push(m[1]); rssTotal += Number(m[2]); }
     }
-    return matched ? total : null;
-  } catch { return null; }
+    if (!pids.length) return none;
+    const files = pids.map((p) => `/proc/${p}/smaps_rollup`).join(' ');
+    // Print "<pss> <uss>" summed across all matched processes.
+    const out2 = await containerExec(
+      `awk '/^Pss:/{p+=$2} /^Private_(Clean|Dirty):/{u+=$2} END{print p+0, u+0}' ${files} 2>/dev/null`);
+    const [p, u] = out2.trim().split(/\s+/).map(Number);
+    return {
+      rssKb: rssTotal,
+      pssKb: Number.isFinite(p) && p > 0 ? p : null,
+      ussKb: Number.isFinite(u) && u > 0 ? u : null,
+    };
+  } catch { return none; }
 }
 
 // Switch to the chart frame (the app iframe if present, else the top document),
@@ -135,8 +168,16 @@ export async function webkitBench(cfg) {
   // Launch WebKitWebDriver inside the container. Host networking makes the port
   // reachable at 127.0.0.1 from this (host) process. `exec` so the WebKit
   // process group is the bash child we can group-kill on teardown.
-  const driverCmd = `cd '${SOURCE_DIR}' && exec Tools/Scripts/run-webdriver ${CONFIG_FLAG} ${PORT_FLAG} -p ${WEBDRIVER_PORT} --host 127.0.0.1`;
-  console.log(`[${app}] launching WebKitWebDriver in container '${CONTAINER}': ${CONFIG_FLAG} ${PORT_FLAG} :${WEBDRIVER_PORT}`);
+  // JSC env exported before run-webdriver so it is inherited by the WebProcess.
+  const jscEnv = [];
+  if (MINI_VM) jscEnv.push('JSC_forceMiniVMMode=1');
+  // --ram-budget: tell JSC the machine has this much RAM, so it sizes/collects
+  // its heaps for that budget (the JSC analog of V8 --max-old-space-size).
+  if (cfg.ramBudgetMB > 0) jscEnv.push(`JSC_forceRAMSize=${cfg.ramBudgetMB * 1024 * 1024}`);
+  const envPrefix = jscEnv.length ? `export ${jscEnv.join(' ')} && ` : '';
+  const driverCmd = `cd '${SOURCE_DIR}' && ${envPrefix}exec Tools/Scripts/run-webdriver ${CONFIG_FLAG} ${PORT_FLAG} -p ${WEBDRIVER_PORT} --host 127.0.0.1`;
+  const tags = [MINI_VM ? 'mini-VM' : null, cfg.ramBudgetMB > 0 ? `ram-budget=${cfg.ramBudgetMB}MB` : null].filter(Boolean).join(' · ') || 'default';
+  console.log(`[${app}] launching WebKitWebDriver in container '${CONTAINER}': ${CONFIG_FLAG} ${PORT_FLAG} :${WEBDRIVER_PORT} · ${tags}`);
   const driver = containerSpawn(driverCmd);
   driver.on('error', (e) => console.error(`[${app}] failed to launch WebKitWebDriver: ${e.message}`));
   driver.stderr.setEncoding('utf8');
@@ -170,6 +211,8 @@ export async function webkitBench(cfg) {
     await wd.execute('try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} return null;').catch(() => {});
     await wd.navigate(url);
 
+    const va = await wd.execute('return JSON.stringify({ w: innerWidth, h: innerHeight, dpr: window.devicePixelRatio });').catch(() => null);
+    if (va) { try { const o = JSON.parse(va); console.log(`[${app}] render area: ${o.w}x${o.h} @ DPR ${o.dpr}`); } catch {} }
     console.log(`[${app}] reset settings to defaults; warming up ${warmupSec}s...`);
     await sleep(warmupSec * 1000);
 
@@ -187,8 +230,8 @@ export async function webkitBench(cfg) {
         fps = (c.frames - last.frames) * 1000 / (c.now - last.now);
       }
       if (c) last = c;
-      const rss = await containerWebkitRssKb();
-      samples.push({ t: Date.now(), phase, fps: fps == null ? null : +fps.toFixed(1), jsHeapBytes: null, rssKb: rss });
+      const mem = await containerWebkitMemAll();
+      samples.push({ t: Date.now(), phase, fps: fps == null ? null : +fps.toFixed(1), jsHeapBytes: null, rssKb: mem.rssKb, pssKb: mem.pssKb, ussKb: mem.ussKb });
     }
 
     console.log(`[${app}] sampling run phase for ${durationSec}s...`);

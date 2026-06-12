@@ -48,6 +48,15 @@ if (args.help || args.h) {
     --out <dir>           output directory (default ./results)
     --verbose             echo per-app launcher output (native/WebKit/Servo)
     --headless            run Chromium web apps off-screen (numbers not representative)
+    --low-memory          launch Chromium with site isolation off (+ process-per-site)
+    --multi-renderer      DON'T cap Chromium renderers (default is one, embedded-style)
+    --no-mini-vm          DON'T run WebKit JSC in mini-VM mode (default: on, embedded-style)
+    --ram-budget <MB>     simulate a device with this much RAM: cap V8 (Chromium)
+                          and JSC (WebKit) JS heaps to the same budget
+
+  Embedded defaults: Chromium runs single-renderer, WebKit runs JSC mini-VM mode.
+  Every run records RSS, PSS and USS; each group gets a separate memory chart per
+  metric (RSS is the headline for embedded — real resident pressure on a device).
 
   Other:
     --stamp <name>        session stamp used in all output filenames
@@ -75,11 +84,11 @@ if (args.skip) { const skip = new Set(String(args.skip).split(',').map((s) => s.
 const stamp = args.stamp || new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const passthrough = [];
 // Value flags: forwarded as `--flag value` (skip if given with no value).
-for (const k of ['duration', 'recover', 'interval', 'warmup', 'out']) {
+for (const k of ['duration', 'recover', 'interval', 'warmup', 'out', 'ram-budget']) {
   if (args[k] !== undefined && args[k] !== true) passthrough.push('--' + k, String(args[k]));
 }
 // Boolean flags: forwarded bare, so the child sees `--verbose` not `--verbose true`.
-for (const k of ['verbose', 'headless']) {
+for (const k of ['verbose', 'headless', 'low-memory', 'single-renderer', 'multi-renderer', 'no-mini-vm']) {
   if (args[k] === true || args[k] === 'true') passthrough.push('--' + k);
 }
 

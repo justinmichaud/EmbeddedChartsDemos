@@ -28,6 +28,8 @@ export function writeReport({ app, params, samples, recoverAtT, outDir, stamp })
       fps: s.fps,
       jsHeapMB: s.jsHeapBytes == null ? null : +(s.jsHeapBytes / 1048576).toFixed(2),
       rssMB: s.rssKb == null ? null : +(s.rssKb / 1024).toFixed(2),
+      pssMB: s.pssKb == null ? null : +(s.pssKb / 1024).toFixed(2),
+      ussMB: s.ussKb == null ? null : +(s.ussKb / 1024).toFixed(2),
     })),
   };
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
@@ -111,7 +113,7 @@ function renderSvg({ app, rel, recoverAtSec, params }) {
   svg += `<path d="${linePath(rssPts)}" fill="none" stroke="${COL.rss}" stroke-width="1.5" opacity="0.9"/>`;
   svg += `<path d="${linePath(fpsPts)}" fill="none" stroke="${COL.fps}" stroke-width="2"/>`;
 
-  // Legend.
+  // Legend. (Per-app SVG plots RSS; the per-group charts split RSS/PSS/USS.)
   const items = [['FPS', COL.fps], ['RSS (MB)', COL.rss], ['JS heap (MB)', COL.heap]];
   let lx = m.left + pw - 320;
   for (const [label, col] of items) {

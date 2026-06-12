@@ -10,7 +10,7 @@
 
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { treeRssKb } from './lib/proc.mjs';
+import { treeMemAll } from './lib/proc.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -91,10 +91,10 @@ export async function nativeBench(cfg) {
   const end = Date.now() + durationSec * 1000;
   while (Date.now() < end && !exited) {
     await sleep(intervalMs);
-    const rss = rssCommandPattern
-      ? await rssByCommand(rssCommandPattern)
-      : await treeRssKb(child.pid);
-    samples.push({ t: Date.now(), phase: 'run', fps: latestFps, jsHeapBytes: null, rssKb: rss });
+    const mem = rssCommandPattern
+      ? { rssKb: await rssByCommand(rssCommandPattern), pssKb: null, ussKb: null }
+      : await treeMemAll(child.pid);
+    samples.push({ t: Date.now(), phase: 'run', fps: latestFps, jsHeapBytes: null, rssKb: mem.rssKb, pssKb: mem.pssKb, ussKb: mem.ussKb });
   }
 
   // Tear down the app: signal the whole process group (detached), then the
