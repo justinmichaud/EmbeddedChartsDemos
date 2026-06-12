@@ -1,41 +1,119 @@
 #!/usr/bin/env node
-// Run every implementation's benchmark in sequence, sharing one timestamp so
-// the JSON/SVG outputs for a session group together in results/.
+// Run a set of implementations' benchmarks in sequence, sharing one timestamp
+// so the JSON/SVG outputs for a session group together in results/.
 //
 //   node run-all.mjs [--duration 30] [--recover 15] [--interval 1000]
-//                    [--only JSChartsFast,WasmCharts] [--skip RNCharts] [--web-only]
+//                    [--only JSChartsFast,WasmCharts] [--skip RNCharts]
+//                    [--web-only] [--all]
 //
-// Native apps (FlutterCharts, QTCharts, QTChartsFast, RNCharts) must be built
-// first — see README.md. Each is spawned as its own launcher process so one
-// failure doesn't abort the rest.
-import { spawn } from 'node:child_process';
+// By default it runs exactly the apps needed for the four comparison groups
+// defined in lib/groups.mjs (Chromium-vs-WebKit, Servo-vs-Chromium, native
+// showdown, final contenders) and, at the end, writes a SEPARATE pair of chart
+// files per group — one for framerate, one for memory.
+//
+// Engines:
+//   - Chromium web apps run via Playwright (web-bench.mjs).
+//   - *WebKit apps run in the local GTK build inside the wkdev container, over
+//     WebDriver (webkit-bench.mjs). Needs a display + the container up.
+//   - JSChartsFastServo runs in a real Servo browser (servo-bench.mjs).
+//   - Native apps (Flutter / Qt / Slint) are spawned directly (native-bench.mjs)
+//     and must be built first — see README.md.
+// Each app is its own launcher process, so one failure doesn't abort the rest.
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { parseArgs } from './lib/cli.mjs';
 import { writeCombined } from './lib/combined.mjs';
+import { DEFAULT_GROUPS, appsForGroups } from './lib/groups.mjs';
+import { writeGroupCharts } from './lib/group-charts.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
 
-// JSChartsFastServo runs the Servo-targeted build in a real Servo browser;
-// JSChartsFastServoChromium runs the same build in Chromium for comparison.
-const WEB = ['CanvasCharts', 'JSChartsFast', 'JSChartsFastServo', 'JSChartsFastServoChromium', 'JSChartsNoLeaks', 'WasmCharts', 'JSChartsSimple'];
-const NATIVE = ['FlutterCharts', 'QTCharts', 'QTChartsFast', 'RNCharts'];
+if (args.help || args.h) {
+  console.log(`Usage: node run-all.mjs [options]
 
-let apps = args.webOnly || args['web-only'] ? WEB : [...WEB, ...NATIVE];
+  Selection (default: the comparison-group apps; see lib/groups.mjs):
+    --all                 run the full catalogue (web + native)
+    --web-only            run only the web apps
+    --only A,B,C          run exactly these apps (comma-separated)
+    --skip A,B            drop these apps from the selection
+
+  Forwarded to each per-app benchmark:
+    --duration <sec>      run-phase length (default 30)
+    --recover <sec>       extra window after RECOVER (web w/ CDP only; default 15)
+    --interval <ms>       sample period (default 1000)
+    --warmup <sec>        warmup before sampling
+    --out <dir>           output directory (default ./results)
+    --verbose             echo per-app launcher output (native/WebKit/Servo)
+    --headless            run Chromium web apps off-screen (numbers not representative)
+
+  Other:
+    --stamp <name>        session stamp used in all output filenames
+    -h, --help            show this help`);
+  process.exit(0);
+}
+
+// Full catalogue, used only when --all / --web-only are requested. The default
+// run is driven by the comparison groups (see below), NOT this list — the slow
+// QTCharts, JSChartsSimple, JSChartsNoLeaks and RNCharts are intentionally not
+// run by default.
+const WEB = ['CanvasCharts', 'CanvasChartsWebKit', 'JSChartsFast', 'JSChartsFastWebKit',
+  'JSChartsFastServo', 'JSChartsFastServoChromium', 'JSChartsNoLeaks',
+  'WasmCharts', 'WasmChartsWebKit', 'JSChartsSimple'];
+const NATIVE = ['FlutterCharts', 'QTCharts', 'QTChartsFast', 'RNCharts', 'SlintCharts'];
+
+// Default: the union of the comparison groups' members (de-duplicated). Each
+// app runs once even when it appears in several groups.
+let apps = appsForGroups(DEFAULT_GROUPS);
+if (args.all) apps = [...WEB, ...NATIVE];
+else if (args.webOnly || args['web-only']) apps = WEB;
 if (args.only) apps = String(args.only).split(',').map((s) => s.trim());
 if (args.skip) { const skip = new Set(String(args.skip).split(',').map((s) => s.trim())); apps = apps.filter((a) => !skip.has(a)); }
 
-const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const stamp = args.stamp || new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const passthrough = [];
-for (const k of ['duration', 'recover', 'interval', 'warmup', 'verbose', 'headless']) {
-  if (args[k] !== undefined) passthrough.push('--' + k, String(args[k]));
+// Value flags: forwarded as `--flag value` (skip if given with no value).
+for (const k of ['duration', 'recover', 'interval', 'warmup', 'out']) {
+  if (args[k] !== undefined && args[k] !== true) passthrough.push('--' + k, String(args[k]));
+}
+// Boolean flags: forwarded bare, so the child sees `--verbose` not `--verbose true`.
+for (const k of ['verbose', 'headless']) {
+  if (args[k] === true || args[k] === 'true') passthrough.push('--' + k);
+}
+
+// Keep the screen/session awake for the (potentially long) run. Best-effort:
+// spawn a blocking inhibitor that lives for the whole run and is killed at the
+// end. systemd-inhibit is the most portable; gnome-session-inhibit is a
+// fallback. A missing tool is not fatal.
+function startIdleInhibitor() {
+  const candidates = [
+    ['systemd-inhibit', ['--what=idle:sleep:handle-lid-switch', '--who=charts-bench',
+      '--why=running charts benchmarks', '--mode=block', 'sleep', 'infinity']],
+    ['gnome-session-inhibit', ['--inhibit', 'idle:suspend', '--inhibit-only',
+      '--reason', 'running charts benchmarks'].concat(['sleep', 'infinity'])],
+  ];
+  for (const [cmd, a] of candidates) {
+    const probe = spawnSync('sh', ['-c', `command -v ${cmd}`], { stdio: 'ignore' });
+    if (probe.status !== 0) continue;
+    const child = spawn(cmd, a, { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
+    console.log(`Idle inhibitor: ${cmd} (screen kept awake for the run)`);
+    return child;
+  }
+  console.log('Idle inhibitor: none available (screen may sleep during long runs)');
+  return null;
 }
 
 function runOne(app) {
   return new Promise((resolve) => {
     const launcher = path.join(here, `bench-${app}.mjs`);
+    if (!fs.existsSync(launcher)) {
+      console.error(`[${app}] no launcher (bench-${app}.mjs) — skipping`);
+      return resolve();
+    }
     console.log(`\n${'#'.repeat(70)}\n# ${app}\n${'#'.repeat(70)}`);
     const child = spawn(process.execPath, [launcher, ...passthrough, '--stamp', stamp], { stdio: 'inherit' });
     child.on('exit', (code) => { if (code) console.error(`[${app}] exited with code ${code}`); resolve(); });
@@ -43,19 +121,36 @@ function runOne(app) {
   });
 }
 
-for (const app of apps) await runOne(app);
+const inhibitor = startIdleInhibitor();
+function stopInhibitor() { if (inhibitor) { try { inhibitor.kill('SIGTERM'); } catch {} } }
+process.on('SIGINT', () => { stopInhibitor(); process.exit(130); });
 
-// Build the combined comparison graph from this session's per-app reports,
-// ordered the way the apps were run.
+try {
+  for (const app of apps) await runOne(app);
+} finally {
+  stopInhibitor();
+}
+
+// Collect this session's per-app reports.
 const resultsDir = path.join(here, 'results');
 const reports = [];
+const reportsByApp = new Map();
 for (const app of apps) {
   const f = path.join(resultsDir, `${app}-${stamp}.json`);
   if (fs.existsSync(f)) {
-    try { reports.push(JSON.parse(fs.readFileSync(f, 'utf8'))); }
+    try { const r = JSON.parse(fs.readFileSync(f, 'utf8')); reports.push(r); reportsByApp.set(app, r); }
     catch { /* skip unreadable */ }
   }
 }
+
+// Per-group chart files (framerate + memory each), the primary output.
+if (reportsByApp.size) {
+  console.log('\nGroup comparison charts:');
+  const written = writeGroupCharts({ reportsByApp, groups: DEFAULT_GROUPS, outDir: resultsDir, stamp });
+  for (const f of written) console.log(`  ${f}`);
+}
+
+// An overall combined graph across everything that ran (handy at a glance).
 if (reports.length >= 1) {
   const { svgPath, jsonPath } = writeCombined({ reports, outDir: resultsDir, stamp });
   console.log(`\nCombined comparison graph: ${svgPath}`);

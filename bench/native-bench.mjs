@@ -44,10 +44,14 @@ export async function nativeBench(cfg) {
   } = cfg;
 
   console.log(`[${app}] launching: ${cmd} ${args.join(' ')}`);
+  // detached:true puts the app in its own process group so the teardown below
+  // (process.kill(-pid, ...)) reaches every child it spawns — without it the
+  // group kill targets nothing and a GUI app can outlive the benchmark.
   const child = spawn(cmd, args, {
     cwd,
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
 
   let latestFps = null;
@@ -93,10 +97,12 @@ export async function nativeBench(cfg) {
     samples.push({ t: Date.now(), phase: 'run', fps: latestFps, jsHeapBytes: null, rssKb: rss });
   }
 
-  // Tear down the app.
+  // Tear down the app: signal the whole process group (detached), then the
+  // child directly, escalating to SIGKILL so nothing is left running.
   try { process.kill(-child.pid, 'SIGTERM'); } catch { /* no group */ }
   try { child.kill('SIGTERM'); } catch {}
   await sleep(500);
+  try { process.kill(-child.pid, 'SIGKILL'); } catch { /* no group */ }
   try { child.kill('SIGKILL'); } catch {}
 
   const s = stamp || new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

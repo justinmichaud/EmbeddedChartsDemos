@@ -17,10 +17,24 @@
 //        [--interval 1000] [--headed] [--out results]
 
 import { chromium } from 'playwright';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { startServer } from './lib/static-server.mjs';
 import { treeRssKb } from './lib/proc.mjs';
 import { writeReport } from './lib/report.mjs';
 import { parseArgs, num, printSummary } from './lib/cli.mjs';
+
+// Fail fast with an actionable message if the app's dist/ is missing or empty.
+// Otherwise the static server just 404s on index.html mid-run and the failure
+// looks like a wrong URL/prefix rather than "you forgot to build the app".
+export function assertEntryExists({ app, rootDir, entry }) {
+  const f = path.join(rootDir, entry);
+  if (!fs.existsSync(f)) {
+    console.error(`[${app}] build not found: ${f}`);
+    console.error(`  The app's dist/ is missing or empty — build it first (e.g. \`pnpm build\` in the app directory), then re-run.`);
+    process.exit(1);
+  }
+}
 
 // rAF FPS meter installed into every frame/document (survives iframe recreation).
 const INIT_SCRIPT = `
@@ -103,6 +117,7 @@ export async function webBench(cfg) {
   const { app, rootDir, base, entry, recoverable, durationSec, recoverSec, intervalMs, warmupSec, outDir } = cfg;
 
   if (!rootDir) { console.error('--root <dir> is required'); process.exit(1); }
+  assertEntryExists({ app, rootDir, entry });
 
   const srv = await startServer({ rootDir, urlBase: base });
   const url = srv.url(entry);

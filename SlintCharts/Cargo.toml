@@ -1,0 +1,24 @@
+[package]
+name = "slintcharts"
+version = "0.1.0"
+edition = "2021"
+description = "Slint port of the EmbeddedDemos stock-chart viewer"
+
+[[bin]]
+name = "slintcharts"
+path = "src/main.rs"
+
+[dependencies]
+# renderer-software powers the headless screenshot tool (examples/shot.rs);
+# the app itself uses the default winit + femtovg backend.
+slint = { version = "1.16", features = ["renderer-software"] }
+
+[build-dependencies]
+slint-build = "1.16"
+
+# A "fast native" comparison should measure optimized code, like QTChartsFast.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

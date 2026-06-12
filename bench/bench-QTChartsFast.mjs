@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Benchmark launcher for QTChartsFast (native Qt6/QML app).
+// Benchmark launcher for QTChartsFast (native Qt6/QML app, macOS or Linux).
 //
 // Prereq: build once with FPS instrumentation (gated on BENCH_FPS=1 below):
-//   cd QTChartsFast && PATH="$(brew --prefix qt)/bin:$PATH" qt-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+//   macOS:  cd QTChartsFast && PATH="$(brew --prefix qt)/bin:$PATH" qt-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
+//   Linux:  cd QTChartsFast && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
 //
 //   node bench-QTChartsFast.mjs --duration 30 [--interval 1000] [--warmup 5] [--verbose]
 import { nativeBench } from './native-bench.mjs';
@@ -15,21 +16,32 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const buildDir = path.resolve(here, '../QTChartsFast/build');
 const args = parseArgs(process.argv.slice(2));
 
-// Discover the built .app bundle executable.
+// Discover the built executable. macOS produces a .app bundle; Linux produces a
+// plain ELF executable directly in build/ (target name "qtcharts_demo").
 let bin = null;
 if (fs.existsSync(buildDir)) {
-  for (const e of fs.readdirSync(buildDir)) {
-    if (e.endsWith('.app')) {
-      const exeDir = path.join(buildDir, e, 'Contents/MacOS');
-      if (fs.existsSync(exeDir)) {
-        const exe = fs.readdirSync(exeDir)[0];
-        if (exe) bin = path.join(exeDir, exe);
+  if (process.platform === 'darwin') {
+    for (const e of fs.readdirSync(buildDir)) {
+      if (e.endsWith('.app')) {
+        const exeDir = path.join(buildDir, e, 'Contents/MacOS');
+        if (fs.existsSync(exeDir)) {
+          const exe = fs.readdirSync(exeDir)[0];
+          if (exe) bin = path.join(exeDir, exe);
+        }
       }
+    }
+  } else {
+    for (const name of ['qtcharts_demo', 'QTChartsFast', 'qtchartsfast']) {
+      const cand = path.join(buildDir, name);
+      if (fs.existsSync(cand) && fs.statSync(cand).isFile()) { bin = cand; break; }
     }
   }
 }
 if (!bin) {
-  console.error('QTChartsFast build not found. Build it first:\n  cd QTChartsFast && PATH="$(brew --prefix qt)/bin:$PATH" qt-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4');
+  const cmd = process.platform === 'darwin'
+    ? 'cd QTChartsFast && PATH="$(brew --prefix qt)/bin:$PATH" qt-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4'
+    : 'cd QTChartsFast && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4';
+  console.error(`QTChartsFast build not found. Build it first:\n  ${cmd}`);
   process.exit(1);
 }
 

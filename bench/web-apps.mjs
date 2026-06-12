@@ -17,4 +17,11 @@ export const WEB_APPS = {
   JSChartsNoLeaks:   { app: 'JSChartsNoLeaks',   rootDir: '../JSChartsNoLeaks/dist',   base: '/EmbeddedChartsDemos/', entry: 'index.html', recoverable: true },
   WasmCharts:        { app: 'WasmCharts',        rootDir: '../WasmCharts/dist',        base: '/EmbeddedChartsDemos/', entry: 'index.html', recoverable: false },
   JSChartsSimple:    { app: 'JSChartsSimple',    rootDir: '../JSChartsSimple',         base: '/',                     entry: 'index.html', recoverable: false },
+
+  // The same three apps, run in the local WebKit (GTK) build inside the wkdev
+  // container (webkit-bench.mjs). Same served dist/ as their Chromium twins, so
+  // the engines can be compared directly. No CDP → no JS heap / no RECOVER.
+  CanvasChartsWebKit: { app: 'CanvasChartsWebKit', rootDir: '../CanvasCharts/dist', base: '/EmbeddedChartsDemos/', entry: 'index.html', recoverable: false },
+  WasmChartsWebKit:   { app: 'WasmChartsWebKit',   rootDir: '../WasmCharts/dist',   base: '/EmbeddedChartsDemos/', entry: 'index.html', recoverable: false },
+  JSChartsFastWebKit: { app: 'JSChartsFastWebKit', rootDir: '../JSChartsFast/dist',  base: '/EmbeddedChartsDemos/', entry: 'index.html', recoverable: false },
 };

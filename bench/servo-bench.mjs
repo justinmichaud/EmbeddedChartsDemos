@@ -18,8 +18,13 @@ import { treeRssKb } from './lib/proc.mjs';
 import { writeReport } from './lib/report.mjs';
 import { printSummary } from './lib/cli.mjs';
 import { WebDriver, waitForWebDriver } from './lib/webdriver.mjs';
+import { assertEntryExists } from './web-bench.mjs';
 
-const SERVO_BIN = process.env.SERVO_BIN || '/Applications/Servo.app/Contents/MacOS/servo';
+// Default Servo location is platform-specific (override with SERVO_BIN). On
+// Linux the local build's prod binary is servoshell under target/production.
+const SERVO_BIN = process.env.SERVO_BIN || (process.platform === 'darwin'
+  ? '/Applications/Servo.app/Contents/MacOS/servo'
+  : `${process.env.HOME}/Development/servo/target/production/servoshell`);
 const WEBDRIVER_PORT = Number(process.env.SERVO_WEBDRIVER_PORT || 7055);
 
 // Same rAF FPS meter the Chromium engine injects (kept byte-for-byte identical
@@ -58,6 +63,7 @@ async function inChartFrame(wd, script) {
 export async function servoBench(cfg) {
   const { app, rootDir, base, entry, durationSec, intervalMs, warmupSec, outDir } = cfg;
   if (!rootDir) { console.error('--root <dir> is required'); process.exit(1); }
+  assertEntryExists({ app, rootDir, entry });
 
   const srv = await startServer({ rootDir, urlBase: base });
   const url = srv.url(entry);
@@ -137,5 +143,5 @@ function readCounter(wd) {
     'return window.__bench ? { frames: window.__bench.frames, now: performance.now() } : null;');
 }
 
-// Reuse the Chromium engine's config resolver, then strip recover (unused here).
+// Reuse the Chromium engine's config resolver.
 export { configFromArgs } from './web-bench.mjs';

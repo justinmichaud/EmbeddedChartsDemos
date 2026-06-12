@@ -1,0 +1,423 @@
+// Slint UI for the stock-chart viewer. Mirrors the dark "MKTTERM" terminal
+// look of the other demos: a top bar, a 3-row news feed, a responsive grid of
+// chart cards, and the sweeping cursor overlay.
+//
+// The chart curves are pre-computed in Rust (monotone-cubic, same as the
+// Canvas demo) and handed to each card as SVG path-command strings, drawn here
+// with the built-in `Path` element scaled to a 0..100 view box.
+
+struct StockCardData {
+    symbol: string,
+    change: string,
+    up: bool,
+    bid: string,
+    mid: string,
+    ask: string,
+    high: string,
+    low: string,
+    spread: string,
+    ask-fill: string,
+    ask-line: string,
+    bid-fill: string,
+    bid-line: string,
+    mid-line: string,
+    yl0: string,
+    yl1: string,
+    yl2: string,
+    yl3: string,
+    yl4: string,
+}
+
+component Btn inherits Rectangle {
+    in property <string> label;
+    in property <color> tint: #6b7280;
+    callback clicked;
+    height: 20px;
+    width: txt.preferred-width + 14px;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: #2d3748;
+    background: ta.has-hover ? #2d3748 : #1a1f29;
+    txt := Text {
+        text: root.label;
+        color: root.tint;
+        font-size: 10px;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+    ta := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component StockCard inherits Rectangle {
+    in property <StockCardData> d;
+    background: #1a1f29;
+    border-color: #2d3748;
+    border-width: 1px;
+    border-radius: 2px;
+    clip: true;
+
+    VerticalLayout {
+        padding: 4px;
+        spacing: 2px;
+
+        // Header: symbol + % change.
+        HorizontalLayout {
+            Text {
+                text: d.symbol;
+                color: #e6e8eb;
+                font-size: 11px;
+                font-weight: 700;
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            Text {
+                text: d.change;
+                color: d.up ? #10b981 : #ef4444;
+                font-size: 11px;
+                font-weight: 700;
+            }
+        }
+
+        // Quote row: BID / MID / ASK / HIGH / LOW.
+        HorizontalLayout {
+            spacing: 2px;
+            for q in [
+                { l: "BID", v: d.bid, c: #ef4444 },
+                { l: "MID", v: d.mid, c: #e6e8eb },
+                { l: "ASK", v: d.ask, c: #10b981 },
+                { l: "HIGH", v: d.high, c: #9ca3af },
+                { l: "LOW", v: d.low, c: #9ca3af },
+            ] : VerticalLayout {
+                Text {
+                    text: q.l;
+                    color: #6b7280;
+                    font-size: 8px;
+                }
+                Text {
+                    text: q.v;
+                    color: q.c;
+                    font-size: 9px;
+                    font-weight: 700;
+                }
+            }
+        }
+
+        // The chart plot. Paths are scaled from a 0..100 view box to fill it.
+        Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            // Faint grid (5 horizontal + 4 vertical lines).
+            Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: "M 0 0 L 100 0 M 0 25 L 100 25 M 0 50 L 100 50 M 0 75 L 100 75 M 0 100 L 100 100 M 0 0 L 0 100 M 25 0 L 25 100 M 50 0 L 50 100 M 75 0 L 75 100";
+                stroke: #2d3748;
+                stroke-width: 1px;
+                opacity: 0.4;
+            }
+
+            ask-fill := Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: d.ask-fill;
+                fill: #10b9811f;
+            }
+            ask-line := Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: d.ask-line;
+                stroke: #10b981;
+                stroke-width: 1px;
+            }
+            bid-fill := Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: d.bid-fill;
+                fill: #ef44441f;
+            }
+            bid-line := Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: d.bid-line;
+                stroke: #ef4444;
+                stroke-width: 1px;
+            }
+            mid-line := Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                commands: d.mid-line;
+                stroke: #3b82f6;
+                stroke-width: 1.5px;
+            }
+
+            // Y-axis labels (bottom → top), then static X-axis labels.
+            for yl[i] in [d.yl0, d.yl1, d.yl2, d.yl3, d.yl4] : Text {
+                x: parent.width - self.preferred-width - 1px;
+                y: (parent.height - 10px) * (1 - i / 4) - 1px;
+                text: yl;
+                color: #6b7280;
+                font-size: 8px;
+            }
+            for xl[i] in ["60s", "45s", "30s", "15s"] : Text {
+                x: parent.width * (i / 4);
+                y: parent.height - 10px;
+                text: xl;
+                color: #6b7280;
+                font-size: 8px;
+            }
+        }
+
+        // Footer.
+        HorizontalLayout {
+            Text {
+                text: "SPR: " + d.spread;
+                color: #6b7280;
+                font-size: 8px;
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            Text {
+                text: "UPD: 5Hz";
+                color: #6b7280;
+                font-size: 8px;
+            }
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    in property <[StockCardData]> cards;
+    in property <int> fps;
+    in property <float> lag-ms;
+    in property <string> clock;
+    in property <string> currency;
+    in property <[string]> news;
+    in property <bool> lag-on;
+
+    callback toggle-lag();
+    callback cycle-currency();
+    callback set-charts(int);
+
+    property <bool> settings-open: false;
+
+    title: "Slint Charts";
+    default-font-family: "monospace";
+    default-font-size: 12px;
+    background: #0f1419;
+    preferred-width: 1400px;
+    preferred-height: 900px;
+    min-width: 480px;
+    min-height: 360px;
+
+    VerticalLayout {
+        // Top bar.
+        Rectangle {
+            height: 34px;
+            background: #0f1419;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 12px;
+                Text {
+                    text: "MKTTERM";
+                    color: #3b82f6;
+                    font-size: 13px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.clock;
+                    color: #6b7280;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.fps + " fps";
+                    color: #4ade80;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: "lag " + round(root.lag-ms * 10) / 10 + "ms";
+                    color: #facc15;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                Btn {
+                    label: "CCY: " + root.currency;
+                    clicked => {
+                        root.cycle-currency();
+                    }
+                }
+                Btn {
+                    label: "SETTINGS";
+                    clicked => {
+                        root.settings-open = !root.settings-open;
+                    }
+                }
+                Btn {
+                    label: root.lag-on ? "LAG ON" : "LAG";
+                    tint: root.lag-on ? #facc15 : #6b7280;
+                    clicked => {
+                        root.toggle-lag();
+                    }
+                }
+            }
+        }
+        Rectangle {
+            height: 1px;
+            background: #2d3748;
+        }
+
+        // News feed (3 rows).
+        Rectangle {
+            height: 56px;
+            background: #11161d;
+            VerticalLayout {
+                padding: 4px;
+                padding-left: 10px;
+                HorizontalLayout {
+                    Text {
+                        text: "NEWSFEED";
+                        color: #6b7280;
+                        font-size: 9px;
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: "LIVE";
+                        color: #4ade80;
+                        font-size: 9px;
+                    }
+                }
+                for line[i] in root.news : Text {
+                    text: (i == 0 ? "▶ " : "   ") + line;
+                    color: i == 0 ? #9ca3af : #6b7280;
+                    font-size: 9px;
+                    overflow: elide;
+                }
+            }
+        }
+        Rectangle {
+            height: 1px;
+            background: #2d3748;
+        }
+
+        // The responsive chart grid (fixed-size cards, vertically scrollable)
+        // plus the sweep overlay.
+        grid := Rectangle {
+            background: #0f1419;
+            clip: true;
+            vertical-stretch: 1;
+            // Depending on animation-tick() keeps the renderer free-running, so
+            // the framerate reflects real draw throughput (like the other demos'
+            // frame callbacks). Also drives the 10 s sweep cursor smoothly.
+            property <float> sweepf: Math.mod(animation-tick() / 1ms, 10000.0) / 10000.0;
+            property <int> cols: self.width < 640px ? 2
+                : self.width < 768px ? 3
+                : self.width < 1024px ? 4
+                : self.width < 1280px ? 5
+                : 6;
+            // Fixed card size so charts stay legible; the grid scrolls instead of
+            // shrinking every card to fit, matching the web/Qt/Flutter demos.
+            property <length> cell-w: self.width / self.cols;
+            property <length> cell-h: 180px;
+            property <float> rows: Math.max(1, Math.ceil(root.cards.length / self.cols));
+
+            Flickable {
+                viewport-width: grid.width;
+                viewport-height: grid.rows * grid.cell-h;
+                for card[idx] in root.cards : StockCard {
+                    d: card;
+                    x: Math.mod(idx, grid.cols) * grid.cell-w + 2px;
+                    y: Math.floor(idx / grid.cols) * grid.cell-h + 2px;
+                    width: grid.cell-w - 4px;
+                    height: grid.cell-h - 4px;
+                }
+            }
+
+            // Sweep cursor over the visible viewport (does not scroll).
+            Rectangle {
+                x: grid.sweepf * grid.width - 24px;
+                width: 24px;
+                height: grid.height;
+                background: #3b82f6;
+                opacity: 0.07;
+            }
+            Rectangle {
+                x: grid.sweepf * grid.width;
+                width: 2px;
+                height: grid.height;
+                background: #63b3ed;
+                opacity: 0.55;
+            }
+        }
+    }
+
+    // Settings overlay.
+    if root.settings-open: Rectangle {
+        background: #000000;
+        opacity: 0.55;
+        TouchArea {
+            clicked => {
+                root.settings-open = false;
+            }
+        }
+    }
+    if root.settings-open: Rectangle {
+        width: 280px;
+        height: 150px;
+        background: #1a1f29;
+        border-color: #2d3748;
+        border-width: 1px;
+        border-radius: 6px;
+        VerticalLayout {
+            padding: 14px;
+            spacing: 10px;
+            Text {
+                text: "CHART COUNT";
+                color: #e6e8eb;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                for n in [8, 20, 30, 50] : Btn {
+                    label: n;
+                    clicked => {
+                        root.set-charts(n);
+                        root.settings-open = false;
+                    }
+                }
+            }
+            Text {
+                text: "Showing " + root.cards.length + " charts";
+                color: #6b7280;
+                font-size: 10px;
+            }
+        }
+    }
+}

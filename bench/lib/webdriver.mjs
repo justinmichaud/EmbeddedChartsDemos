@@ -26,8 +26,10 @@ export class WebDriver {
     return json.value;
   }
 
-  async newSession() {
-    const value = await this.#send('POST', '/session', { capabilities: { alwaysMatch: {} } });
+  // alwaysMatch defaults to {} (Servo accepts an empty match). WebKitWebDriver
+  // wants browserName: 'webkitgtk' so it launches its bundled MiniBrowser.
+  async newSession(alwaysMatch = {}) {
+    const value = await this.#send('POST', '/session', { capabilities: { alwaysMatch } });
     this.sessionId = value.sessionId;
     return value;
   }
@@ -36,6 +38,9 @@ export class WebDriver {
 
   // id: a frame index (number), or null to return to the top-level document.
   switchToFrame(id) { return this.#send('POST', `/session/${this.sessionId}/frame`, { id }); }
+
+  // Maximize the top-level window (best-effort; no-op without a window manager).
+  maximizeWindow() { return this.#send('POST', `/session/${this.sessionId}/window/maximize`, {}); }
 
   // Runs in whichever frame is currently switched-to. Returns the script's
   // return value (already JSON-decoded by WebDriver).
@@ -51,14 +56,16 @@ export class WebDriver {
 }
 
 // Poll until the WebDriver server accepts a session, or time out. Servo takes a
-// few seconds to bring its WebDriver port up after launch.
-export async function waitForWebDriver(port, timeoutMs = 20000) {
+// few seconds to bring its WebDriver port up after launch; WebKitWebDriver in
+// the container can take longer (process spawn + display attach), so callers
+// may pass a larger timeout and the per-session capabilities to request.
+export async function waitForWebDriver(port, timeoutMs = 20000, alwaysMatch = {}) {
   const deadline = Date.now() + timeoutMs;
   let lastErr;
   while (Date.now() < deadline) {
     const wd = new WebDriver(port);
-    try { await wd.newSession(); return wd; }
+    try { await wd.newSession(alwaysMatch); return wd; }
     catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 500)); }
   }
-  throw new Error(`Servo WebDriver did not come up on port ${port}: ${lastErr?.message || 'timeout'}`);
+  throw new Error(`WebDriver did not come up on port ${port}: ${lastErr?.message || 'timeout'}`);
 }

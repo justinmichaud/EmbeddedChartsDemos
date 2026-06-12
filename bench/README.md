@@ -22,6 +22,11 @@ effect** on normal runs:
 - QTCharts / QTChartsFast: `src/AppModel.cpp` (`reportFps`)
 - RNCharts: [`src/components/MenuBar.tsx`](../RNCharts/src/components/MenuBar.tsx)
 
+The web apps run in three engines: **Chromium** (Playwright), **WebKit**
+(WebDriver, in the wkdev container) and **Servo** (WebDriver). FPS is measured
+the same rAF way in all three; only Chromium reports JS heap and supports the
+RECOVER phase (the others have no CDP). Native apps run directly.
+
 ## Setup
 
 ```bash
@@ -71,18 +76,50 @@ node bench-JSChartsSimple.mjs             --duration 30                # no RECO
 > Uses the prebuilt `dist/`. To benchmark fresh code, rebuild the app first
 > (`pnpm build` / `pnpm wasm:build` etc.).
 
+### Web apps in WebKit (WPE/GTK)
+
+`CanvasCharts`, `WasmCharts` and `JSChartsFast` can also be run in the local
+**WebKit** build, driven over WebDriver — the same rAF FPS methodology as the
+Chromium and Servo runs, so the engines are directly comparable:
+
+```bash
+node bench-CanvasChartsWebKit.mjs --duration 30
+node bench-WasmChartsWebKit.mjs   --duration 30
+node bench-JSChartsFastWebKit.mjs --duration 30
+```
+
+These launch `Tools/Scripts/run-webdriver --release --gtk` **inside the wkdev
+container** (`wkdev-enter --exec`) and point it at the build's `MiniBrowser`.
+The container uses host networking, so the WebDriver port and the host static
+server reach each other on `127.0.0.1`; RSS is summed by running `ps` inside
+the container. Like Servo there is **no JS heap and no RECOVER** (no CDP). Env
+knobs: `WKDEV_CONTAINER` (default `wkdev64`), `WEBKIT_SOURCE_DIR` (default
+`~/Development/DebugVersion/OpenSource`), `WEBKIT_WEBDRIVER_PORT` (default
+`8088`), `WEBKIT_PORT` (`gtk`|`wpe`), `WEBKIT_CONFIG` (`release`|`debug`).
+
+> **Run from a real graphical session.** WebKit only advances
+> `requestAnimationFrame` while its window is actually composited on a live
+> display; on a virtual/headless display with no compositor the FPS reads 0
+> (Chromium sidesteps this with throttle-disable launch flags WebKit does not
+> expose). Launch `run-all`/the WebKit launchers from the same graphical shell
+> you use for `run-minibrowser`.
+
 ### Native apps — build once, then run
 
-**FlutterCharts**
+**FlutterCharts** (macOS or Linux)
 ```bash
-cd ../FlutterCharts && flutter build macos --profile && cd ../bench
+cd ../FlutterCharts && flutter build macos --profile && cd ../bench   # macOS
+cd ../FlutterCharts && flutter build linux --profile && cd ../bench   # Linux
 node bench-FlutterCharts.mjs --duration 30
 ```
 
-**QTCharts / QTChartsFast**
+**QTCharts / QTChartsFast** (macOS or Linux)
 ```bash
 cd ../QTCharts        # or QTChartsFast
+# macOS:
 PATH="$(brew --prefix qt)/bin:$PATH" qt-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+# Linux:
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j4
 cd ../bench
 node bench-QTCharts.mjs --duration 30
@@ -98,18 +135,32 @@ node bench-RNCharts.mjs --duration 30
 ### Everything at once
 
 ```bash
-node run-all.mjs --duration 30 --recover 15            # all (natives must be built)
-node run-all.mjs --web-only --duration 30 --recover 15 # just the 6 web apps
+node run-all.mjs --duration 30                  # default: the comparison-group apps
+node run-all.mjs --all --duration 30 --recover 15   # the full catalogue
+node run-all.mjs --web-only --duration 30 --recover 15
 node run-all.mjs --only JSChartsFast,WasmCharts
-node run-all.mjs --skip RNCharts
+node run-all.mjs --skip FlutterCharts
 ```
 
-`run-all.mjs` runs each implementation in turn (sharing one timestamp) and then
-writes a **combined comparison graph** across all of them:
-`results/_combined-<stamp>.svg` — two stacked panels (FPS and RSS vs. elapsed
-time) with one color-coded line per demo and a legend showing each app's average
-FPS and peak RSS — plus `results/_combined-<stamp>.json` with those summary
-numbers.
+**By default** `run-all.mjs` runs exactly the apps needed for four comparison
+groups (defined in [`lib/groups.mjs`](lib/groups.mjs)) — each app runs once even
+when it appears in several groups — and keeps the **screen/session awake** for
+the whole run (`systemd-inhibit`, falling back to `gnome-session-inhibit`). The
+default groups:
+
+1. **Chromium vs WebKit** — JS+SVG, JS+Canvas and Wasm, each in WebKit (WPE) and Chromium.
+2. **Servo vs Chromium** — Servo, the Servo compat baseline (Chromium), and JS+SVG (Chromium).
+3. **Native showdown** — Qt, Flutter, Slint, Wasm (Chromium).
+4. **Final contenders** — JS+Canvas (Chromium), Qt, Slint.
+
+The intentionally-omitted demos (the slow `QTCharts`, `JSChartsSimple`,
+`JSChartsNoLeaks`, `RNCharts`) only run under `--all` or an explicit `--only`.
+
+For **each group** it writes a **separate pair of chart files** — framerate and
+memory kept in distinct files:
+`results/<group-slug>-fps-<stamp>.svg` and `results/<group-slug>-memory-<stamp>.svg`
+(one color-coded line per member, labelled as above). It also still writes the
+overall `results/_combined-<stamp>.svg` / `.json` across everything that ran.
 
 ## Settings reset
 
@@ -118,7 +169,7 @@ so the benchmark always measures the same configuration (currently 50 charts)
 regardless of anything a prior interactive session saved:
 
 - Web — clears `localStorage` and reloads (web app default).
-- FlutterCharts — deletes `~/Library/Application Support/FlutterCharts/settings.json`.
+- FlutterCharts — deletes the saved `settings.json` (`~/Library/Application Support/FlutterCharts/` on macOS, `~/.local/share/FlutterCharts/` on Linux).
 - QTCharts / QTChartsFast — `QSettings().clear()` at startup, gated on `BENCH_RESET=1`.
 - RNCharts — clears AsyncStorage in `boot()`, gated on `EXPO_PUBLIC_BENCH_RESET=1`.
 
@@ -138,11 +189,14 @@ A summary table is also printed to the console at the end of each run.
 
 ```
 bench/
-  bench-<App>.mjs     per-implementation launcher (one per app)
-  web-bench.mjs       web engine: static server + Playwright driver
+  bench-<App>.mjs     per-implementation launcher (one per app; *WebKit variants too)
+  web-bench.mjs       web engine: static server + Playwright (Chromium) driver
+  webkit-bench.mjs    WebKit engine: WebDriver via run-webdriver in the wkdev container
+  servo-bench.mjs     Servo engine: WebDriver against a real Servo build
   native-bench.mjs    native engine: spawn app, parse BENCHFPS, sample RSS
   web-apps.mjs        per-web-app config (dist dir, base path, recover support)
-  run-all.mjs         run every implementation in one session + combined graph
-  lib/                static-server, proc (RSS), report (JSON+SVG), combined, stats, cli
-  results/            output (.json + .svg)
+  run-all.mjs         run the default groups (or --all) in one session + charts
+  lib/                static-server, proc (RSS), report, combined, stats, cli,
+                      webdriver, groups (group defs), group-charts (per-group SVGs)
+  results/            output (.json + per-app .svg + per-group fps/memory .svg)
 ```
